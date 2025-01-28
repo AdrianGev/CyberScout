@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CyberScout</string>
+    <string name="title_activity_main">CyberScout</string>
+    <string name="package_name">com.cyberscout.app</string>
+    <string name="custom_url_scheme">com.cyberscout.app</string>
+</resources>
