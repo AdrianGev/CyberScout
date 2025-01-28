@@ -10,21 +10,8 @@ CyberScout is a web-based scouting application for FIRST Robotics Competition (F
 - Export functionality
 
 ## Setup
-1. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+1. Install Dependencies
 
-## 2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+## Start it
+2. npm start
 
-## 3. Run the application:
-```bash
-python app.py
-```
-
-## Usage
-Access the application at http://localhost:5000 after starting the server.
