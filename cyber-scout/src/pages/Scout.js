@@ -12,6 +12,7 @@ function Scout() {
   const navigate = useNavigate();
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrData, setQRData] = useState('');
+  const [tbaRankPoints, setTbaRankPoints] = useState(0);
   const [formData, setFormData] = useState({
     // Scout Information
     matchNumber: '',
@@ -24,6 +25,7 @@ function Scout() {
     crossedOpponentSide: false,
     // Autonomous
     movedInAuto: false,
+    otherAllianceMembersMoved: 0,
     autoPoints: 0,
     autoCoralL1: 0,
     autoCoralL2: 0,
@@ -32,11 +34,13 @@ function Scout() {
     autoAlgaeProcessor: 0,
     autoAlgaeNet: 0,
     autoNotes: '',
+    autoRankPoint: 0,
     // Teleop
     teleopCoralL1: 0,
     teleopCoralL2: 0,
     teleopCoralL3: 0,
     teleopCoralL4: 0,
+    teleopCoralMissed: 0,
     teleopAlgaeProcessor: 0,
     teleopAlgaeNet: 0,
     humanPlayerNetScoring: 0,
@@ -86,49 +90,61 @@ function Scout() {
   }, [selectedEvent, formData.matchNumber, formData.teamNumber]);
 
   const validateTeamAndMatch = (matchNum, teamNum) => {
-    if (!selectedEvent) {
-      setValidationError('Please select a competition first');
+    // Basic validation for match number and team number
+    if (!matchNum || !teamNum) {
+      setValidationError('Please enter both match and team numbers');
       return false;
     }
 
-    const match = eventMatches.find(m => 
-      m.match_number.toString() === matchNum.toString() && 
-      m.comp_level === 'qm' // Assuming qualification matches
-    );
-
-    if (!match) {
-      setValidationError(`Match ${matchNum} not found in the current competition`);
+    if (isNaN(matchNum) || matchNum < 1) {
+      setValidationError('Please enter a valid match number');
       return false;
     }
 
-    const allTeams = [
-      ...match.alliances.red.team_keys,
-      ...match.alliances.blue.team_keys
-    ].map(key => key.replace('frc', ''));
-
-    if (!allTeams.includes(teamNum.toString())) {
-      setValidationError(`Team ${teamNum} is not playing in match ${matchNum}`);
+    if (isNaN(teamNum) || teamNum < 1) {
+      setValidationError('Please enter a valid team number');
       return false;
     }
 
-    // Set match result based on team's alliance and match outcome
-    const isRedAlliance = match.alliances.red.team_keys.includes(`frc${teamNum}`);
-    const redScore = match.alliances.red.score;
-    const blueScore = match.alliances.blue.score;
-    
-    let matchResult = '';
-    if (redScore > blueScore) {
-      matchResult = isRedAlliance ? 'win' : 'loss';
-    } else if (blueScore > redScore) {
-      matchResult = isRedAlliance ? 'loss' : 'win';
-    } else {
-      matchResult = 'tie';
-    }
+    // If we have event data, we can validate against it, but it's optional
+    if (selectedEvent && eventMatches.length > 0) {
+      const match = eventMatches.find(m => 
+        m.match_number.toString() === matchNum.toString() && 
+        m.comp_level === 'qm'
+      );
 
-    setFormData(prev => ({
-      ...prev,
-      matchResult
-    }));
+      if (match) {
+        const allTeams = [
+          ...match.alliances.red.team_keys,
+          ...match.alliances.blue.team_keys
+        ].map(key => key.replace('frc', ''));
+
+        if (allTeams.includes(teamNum.toString())) {
+          // Set match result and rank points if we have the data
+          const isRedAlliance = match.alliances.red.team_keys.includes(`frc${teamNum}`);
+          const redScore = match.alliances.red.score;
+          const blueScore = match.alliances.blue.score;
+          
+          let matchResult = '';
+          if (redScore > blueScore) {
+            matchResult = isRedAlliance ? 'win' : 'loss';
+          } else if (blueScore > redScore) {
+            matchResult = isRedAlliance ? 'loss' : 'win';
+          } else {
+            matchResult = 'tie';
+          }
+
+          const allianceData = isRedAlliance ? match.alliances.red : match.alliances.blue;
+          const tbaRankPointsValue = allianceData.rp || 0;
+          setTbaRankPoints(tbaRankPointsValue);
+
+          setFormData(prev => ({
+            ...prev,
+            matchResult
+          }));
+        }
+      }
+    }
 
     setValidationError('');
     return true;
@@ -136,10 +152,22 @@ function Scout() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        [name]: value
+      };
+
+      // Update autoRankPoint when movedInAuto or otherAllianceMembersMoved changes
+      if (name === 'movedInAuto' || name === 'otherAllianceMembersMoved') {
+        const autoQualifies = 
+          (name === 'movedInAuto' ? value : prev.movedInAuto) && 
+          Number(name === 'otherAllianceMembersMoved' ? value : prev.otherAllianceMembersMoved) === 2;
+        newData.autoRankPoint = autoQualifies ? 1 : 0;
+      }
+
+      return newData;
+    });
 
     // Validate team and match numbers when either changes
     if (name === 'matchNumber' || name === 'teamNumber') {
@@ -159,38 +187,53 @@ function Scout() {
       data.matchNumber,
       data.teamNumber,
       data.startingPosition,
+      
       // Safety & Fouls
-      data.autoStop ? '1' : '0',
-      data.eStop ? '1' : '0',
-      data.hitOpponentCage ? '1' : '0',
-      data.crossedOpponentSide ? '1' : '0',
+      data.autoStop ? 'True' : 'False',
+      data.eStop ? 'True' : 'False',
+      data.hitOpponentCage ? 'True' : 'False',
+      data.crossedOpponentSide ? 'True' : 'False',
+      
       // Auto
-      data.movedInAuto ? '1' : '0',
+      data.movedInAuto ? 'True' : 'False',
+      data.otherAllianceMembersMoved,
+      data.autoPoints,
       data.autoCoralL1,
       data.autoCoralL2,
       data.autoCoralL3,
       data.autoCoralL4,
       data.autoAlgaeProcessor,
       data.autoAlgaeNet,
+      data.autoRankPoint,
       data.autoNotes,
+      
       // Teleop
       data.teleopCoralL1,
       data.teleopCoralL2,
       data.teleopCoralL3,
       data.teleopCoralL4,
+      data.teleopCoralMissed,
       data.teleopAlgaeProcessor,
       data.teleopAlgaeNet,
       data.humanPlayerNetScoring,
       data.humanPlayerNetMisses,
       data.teleopNotes,
       data.teleopTotalPoints,
+      
       // Endgame
       data.endgamePosition,
       data.endgameTotalPoints,
-      // Results
-      data.totalRankPoints,
+      
+      // Match Results
       data.matchResult,
-      data.matchTotalPoints // Total Points
+      data.matchTotalPoints,
+      data.totalRankPoints,
+      
+      // Score Override
+      data.useScoreOverride ? 'True' : 'False',
+      data.scoreOverride,
+      data.useRankPointsOverride ? 'True' : 'False',
+      data.rankPointsOverride
     ];
 
     return orderedFields.join('\t');
@@ -258,10 +301,8 @@ function Scout() {
     else if (formData.matchResult === 'tie') rankPoints += 1;
     // Loss is 0 points
 
-    // Auto RP - all robots leave and score 1 coral in auto
-    const autoQualifies = formData.movedInAuto && 
-      (Number(formData.autoCoralL1) + Number(formData.autoCoralL2) + 
-       Number(formData.autoCoralL3) + Number(formData.autoCoralL4)) >= 1;
+    // Auto RP - this robot moved and all other alliance robots moved
+    const autoQualifies = formData.movedInAuto && formData.otherAllianceMembersMoved === 2;
     if (autoQualifies) rankPoints += 1;
 
     // Check for coopertition - at least 2 algae in EACH processor
@@ -318,12 +359,14 @@ function Scout() {
       teleopTotalPoints: teleopPoints,
       endgameTotalPoints: endgamePoints,
       matchTotalPoints: totalPoints,
-      totalRankPoints: finalRankPoints
+      totalRankPoints: finalRankPoints,
+      autoRankPoint: formData.movedInAuto && formData.otherAllianceMembersMoved === 2 ? 1 : 0
     }));
   }, [formData.autoCoralL1, formData.autoCoralL2, formData.autoCoralL3, formData.autoCoralL4,
       formData.teleopCoralL1, formData.teleopCoralL2, formData.teleopCoralL3, formData.teleopCoralL4,
       formData.autoAlgaeProcessor, formData.autoAlgaeNet, formData.teleopAlgaeProcessor, formData.teleopAlgaeNet,
-      formData.endgamePosition, formData.matchResult, formData.humanPlayerNetScoring, formData.useScoreOverride, formData.useRankPointsOverride]);
+      formData.endgamePosition, formData.matchResult, formData.humanPlayerNetScoring, formData.useScoreOverride, 
+      formData.useRankPointsOverride, formData.movedInAuto, formData.otherAllianceMembersMoved]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -364,6 +407,7 @@ function Scout() {
       crossedOpponentSide: false,
       // Autonomous
       movedInAuto: false,
+      otherAllianceMembersMoved: 0,
       autoPoints: 0,
       autoCoralL1: 0,
       autoCoralL2: 0,
@@ -372,11 +416,13 @@ function Scout() {
       autoAlgaeProcessor: 0,
       autoAlgaeNet: 0,
       autoNotes: '',
+      autoRankPoint: 0,
       // Teleop
       teleopCoralL1: 0,
       teleopCoralL2: 0,
       teleopCoralL3: 0,
       teleopCoralL4: 0,
+      teleopCoralMissed: 0,
       teleopAlgaeProcessor: 0,
       teleopAlgaeNet: 0,
       humanPlayerNetScoring: 0,
@@ -467,7 +513,7 @@ function Scout() {
                 padding: '10px'
               }}>
                 <div className="text-center mb-2">
-                  <strong style={{ color: '#0d6efd', fontSize: '0.9rem' }}>Blue Alliance</strong>
+                  <strong style={{ color: '#0d6efd' }}>Blue Alliance</strong>
                 </div>
                 <div className="d-flex flex-column gap-2">
                   {[1, 2, 3].map((position) => (
@@ -482,7 +528,6 @@ function Scout() {
                         }
                       })}
                       style={{ 
-                        fontSize: '0.9rem',
                         padding: '6px',
                         width: '100%',
                         position: 'relative'
@@ -492,7 +537,6 @@ function Scout() {
                       {correctPosition === `blue${position}` && (
                         <i className="bi bi-star-fill text-warning position-absolute" 
                            style={{ 
-                             fontSize: '0.8rem', 
                              top: '2px', 
                              right: '4px' 
                            }}
@@ -511,7 +555,7 @@ function Scout() {
                 padding: '10px'
               }}>
                 <div className="text-center mb-2">
-                  <strong style={{ color: '#dc3545', fontSize: '0.9rem' }}>Red Alliance</strong>
+                  <strong style={{ color: '#dc3545' }}>Red Alliance</strong>
                 </div>
                 <div className="d-flex flex-column gap-2">
                   {[1, 2, 3].map((position) => (
@@ -526,7 +570,6 @@ function Scout() {
                         }
                       })}
                       style={{ 
-                        fontSize: '0.9rem',
                         padding: '6px',
                         width: '100%',
                         position: 'relative'
@@ -536,7 +579,6 @@ function Scout() {
                       {correctPosition === `red${position}` && (
                         <i className="bi bi-star-fill text-warning position-absolute" 
                            style={{ 
-                             fontSize: '0.8rem', 
                              top: '2px', 
                              right: '4px' 
                            }}
@@ -558,7 +600,7 @@ function Scout() {
           <div className="card-body">
             <div className="row">
               <div className="col-md-3">
-                <div className="form-check" style={{ transform: 'scale(2)', transformOrigin: 'left center', margin: '20px 0' }}>
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
                   <input
                     type="checkbox"
                     name="autoStop"
@@ -571,11 +613,11 @@ function Scout() {
                       }
                     })}
                   />
-                  <label className="form-check-label ms-2" style={{ fontSize: '0.65em' }}>Auto Stop</label>
+                  <label className="form-check-label ms-2">Auto Stop</label>
                 </div>
               </div>
               <div className="col-md-3">
-                <div className="form-check" style={{ transform: 'scale(2)', transformOrigin: 'left center', margin: '20px 0' }}>
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
                   <input
                     type="checkbox"
                     name="eStop"
@@ -588,11 +630,11 @@ function Scout() {
                       }
                     })}
                   />
-                  <label className="form-check-label ms-2" style={{ fontSize: '0.65em' }}>E-Stop</label>
+                  <label className="form-check-label ms-2">E-Stop</label>
                 </div>
               </div>
               <div className="col-md-3">
-                <div className="form-check" style={{ transform: 'scale(2)', transformOrigin: 'left center', margin: '20px 0' }}>
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
                   <input
                     type="checkbox"
                     name="hitOpponentCage"
@@ -605,11 +647,11 @@ function Scout() {
                       }
                     })}
                   />
-                  <label className="form-check-label ms-2" style={{ fontSize: '0.65em' }}>Hit Opponent</label>
+                  <label className="form-check-label ms-2">Hit Opponent</label>
                 </div>
               </div>
               <div className="col-md-3">
-                <div className="form-check" style={{ transform: 'scale(2)', transformOrigin: 'left center', margin: '20px 0' }}>
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
                   <input
                     type="checkbox"
                     name="crossedOpponentSide"
@@ -622,7 +664,7 @@ function Scout() {
                       }
                     })}
                   />
-                  <label className="form-check-label ms-2" style={{ fontSize: '0.65em' }}>Crossed Side</label>
+                  <label className="form-check-label ms-2">Crossed Side</label>
                 </div>
               </div>
             </div>
@@ -636,8 +678,8 @@ function Scout() {
           </div>
           <div className="card-body">
             <div className="row mb-3">
-              <div className="col-12 d-flex justify-content-center">
-                <div className="form-check" style={{ transform: 'scale(2)', margin: '20px 0' }}>
+              <div className="col-4 offset-2">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
                   <input
                     type="checkbox"
                     name="movedInAuto"
@@ -650,7 +692,24 @@ function Scout() {
                       }
                     })}
                   />
-                  <label className="form-check-label ms-2" style={{ fontSize: '0.65em' }}>Moved in Auto</label>
+                  <label className="form-check-label ms-2">Moved in Auto</label>
+                </div>
+              </div>
+              <div className="col-6 d-flex justify-content-end pe-4">
+                <div className="d-flex align-items-center" style={{ transform: 'scale(1.5)', transformOrigin: 'right center', margin: '20px 0' }}>
+                  <label className="form-label mb-0 me-2">Other Alliance Members Moved:</label>
+                  <input
+                    type="range"
+                    className="form-range"
+                    style={{ width: '60px' }}
+                    name="otherAllianceMembersMoved"
+                    min="0"
+                    max="2"
+                    step="1"
+                    value={formData.otherAllianceMembersMoved}
+                    onChange={handleChange}
+                  />
+                  <span className="ms-2">{formData.otherAllianceMembersMoved}</span>
                 </div>
               </div>
             </div>
@@ -803,6 +862,19 @@ function Scout() {
                           <NumberInput
                             name="teleopCoralL4"
                             value={formData.teleopCoralL4}
+                            onChange={handleChange}
+                            min={0}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="row mt-2">
+                      <div className="col-12">
+                        <div className="form-group mb-3">
+                          <label><strong>Coral Missed</strong></label>
+                          <NumberInput
+                            name="teleopCoralMissed"
+                            value={formData.teleopCoralMissed}
                             onChange={handleChange}
                             min={0}
                           />
@@ -982,82 +1054,17 @@ function Scout() {
                   </div>
                 </div>
               </div>
-
               <div className="col-md-6">
                 <div className="card">
                   <div className="card-header bg-light">
-                    <h6 className="mb-0" style={{ fontSize: '1.1rem' }}>Rank Points</h6>
+                    <h6 className="mb-0" style={{ fontSize: '1.1rem' }}>Final Rank Points</h6>
                   </div>
                   <div className="card-body">
                     <div className="list-group">
-                      <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.1rem' }}>
-                        Match Result
-                        <span className="badge bg-secondary rounded-pill" style={{ fontSize: '1rem' }}>
-                          {formData.matchResult === 'win' ? '3' : 
-                           formData.matchResult === 'tie' ? '1' : '0'}
-                        </span>
-                      </div>
-                      <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.1rem' }}>
-                        Auto RP
-                        <span className={`badge ${formData.movedInAuto && 
-                          (Number(formData.autoCoralL1) + Number(formData.autoCoralL2) + 
-                           Number(formData.autoCoralL3) + Number(formData.autoCoralL4)) >= 1 
-                          ? 'bg-success' : 'bg-secondary'} rounded-pill`} style={{ fontSize: '1rem' }}>
-                          {formData.movedInAuto && 
-                           (Number(formData.autoCoralL1) + Number(formData.autoCoralL2) + 
-                            Number(formData.autoCoralL3) + Number(formData.autoCoralL4)) >= 1 ? '1' : '0'}
-                        </span>
-                      </div>
-                      <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.1rem' }}>
-                        Coral RP
-                        <span className={`badge rounded-pill ${(() => {
-                          const coopertitionAchieved = 
-                            Number(formData.autoAlgaeProcessor) >= 2 && 
-                            Number(formData.teleopAlgaeProcessor) >= 2;
-                          const coralLevels = [
-                            Number(formData.teleopCoralL1) + Number(formData.autoCoralL1),
-                            Number(formData.teleopCoralL2) + Number(formData.autoCoralL2),
-                            Number(formData.teleopCoralL3) + Number(formData.autoCoralL3),
-                            Number(formData.teleopCoralL4) + Number(formData.autoCoralL4)
-                          ];
-                          const levelsWithFiveCoral = coralLevels.filter(level => level >= 5).length;
-                          return (coopertitionAchieved ? levelsWithFiveCoral >= 3 : levelsWithFiveCoral >= 4) ? 'bg-success' : 'bg-secondary';
-                        })()}`} style={{ fontSize: '1rem' }}>
-                          {(() => {
-                            const coopertitionAchieved = 
-                              Number(formData.autoAlgaeProcessor) >= 2 && 
-                              Number(formData.teleopAlgaeProcessor) >= 2;
-                            const coralLevels = [
-                              Number(formData.teleopCoralL1) + Number(formData.autoCoralL1),
-                              Number(formData.teleopCoralL2) + Number(formData.autoCoralL2),
-                              Number(formData.teleopCoralL3) + Number(formData.autoCoralL3),
-                              Number(formData.teleopCoralL4) + Number(formData.autoCoralL4)
-                            ];
-                            const levelsWithFiveCoral = coralLevels.filter(level => level >= 5).length;
-                            return (coopertitionAchieved ? levelsWithFiveCoral >= 3 : levelsWithFiveCoral >= 4) ? '1' : '0';
-                          })()}
-                        </span>
-                      </div>
-                      <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.1rem' }}>
-                        Barge RP
-                        <span className={`badge ${(() => {
-                          const bargePoints = 
-                            (Number(formData.autoAlgaeProcessor) + Number(formData.teleopAlgaeProcessor)) * 6 +
-                            (Number(formData.autoAlgaeNet) + Number(formData.teleopAlgaeNet)) * 4;
-                          return bargePoints >= 14 ? 'bg-success' : 'bg-secondary';
-                        })()} rounded-pill`} style={{ fontSize: '1rem' }}>
-                          {(() => {
-                            const bargePoints = 
-                              (Number(formData.autoAlgaeProcessor) + Number(formData.teleopAlgaeProcessor)) * 6 +
-                              (Number(formData.autoAlgaeNet) + Number(formData.teleopAlgaeNet)) * 4;
-                            return bargePoints >= 14 ? '1' : '0';
-                          })()}
-                        </span>
-                      </div>
-                      <div className="list-group-item d-flex justify-content-between align-items-center bg-light py-3" style={{ fontSize: '1.2rem' }}>
+                      <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.2rem' }}>
                         <strong>Total RP</strong>
-                        <span className="badge bg-dark rounded-pill" style={{ fontSize: '1.1rem' }}>
-                          {formData.totalRankPoints}
+                        <span className={`badge ${formData.useRankPointsOverride ? 'bg-danger' : 'bg-dark'} rounded-pill`} style={{ fontSize: '1.1rem' }}>
+                          {formData.useRankPointsOverride ? formData.rankPointsOverride : tbaRankPoints}
                         </span>
                       </div>
                     </div>
