@@ -68,15 +68,19 @@ function Scout() {
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-
-    // Update autoRankPoint when movedInAuto or otherAllianceMembersMoved changes
-    if (name === 'movedInAuto' || name === 'otherAllianceMembersMoved') {
-      const autoQualifies = 
-        (name === 'movedInAuto' ? value : prev.movedInAuto) && 
-        Number(name === 'otherAllianceMembersMoved' ? value : prev.otherAllianceMembersMoved) === 2;
-      setFormData(prev => ({ ...prev, autoRankPoint: autoQualifies ? 1 : 0 }));
-    }
+    setFormData(prevData => {
+      const newData = { ...prevData, [name]: value };
+      
+      // Update autoRankPoint when movedInAuto or otherAllianceMembersMoved changes
+      if (name === 'movedInAuto' || name === 'otherAllianceMembersMoved') {
+        const autoQualifies = 
+          (name === 'movedInAuto' ? value : prevData.movedInAuto) && 
+          Number(name === 'otherAllianceMembersMoved' ? value : prevData.otherAllianceMembersMoved) === 2;
+        newData.autoRankPoint = autoQualifies ? 1 : 0;
+      }
+      
+      return newData;
+    });
 
     // Validate team and match numbers when either changes
     if (name === 'matchNumber' || name === 'teamNumber') {
