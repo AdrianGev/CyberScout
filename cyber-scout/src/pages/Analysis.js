@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import Chart from 'chart.js/auto';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -28,29 +28,6 @@ function Analysis() {
     const [csvError, setCsvError] = useState(null);
     const location = useLocation();
     const navigate = useNavigate();
-
-    useEffect(() => {
-        console.log('Matches loaded:', matches);
-        
-        // Optional: Add a check for match data type
-        if (matches && matches.length > 0) {
-            const firstMatch = matches[0];
-            console.log('First Match Structure:', {
-                teamNumber: typeof firstMatch.teamNumber,
-                autoPoints: typeof firstMatch.autoPoints,
-                matchNumber: typeof firstMatch.matchNumber
-            });
-        }
-    }, [matches]);
-
-    useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const teamFromUrl = params.get('team');
-        if (teamFromUrl) {
-            setSelectedTeam(teamFromUrl);
-            searchTeam(teamFromUrl);
-        }
-    }, [location, searchTeam]);
 
     const calculatePercentageChange = (start, end) => {
         if (!start || !end) return null;
@@ -98,204 +75,88 @@ function Analysis() {
         chart.update();
     };
 
-    const updateChart = () => {
+    const updateChart = useCallback(() => {
+        if (!chartRef.current || !selectedTeam || matches.length === 0) return;
+
+        const teamMatches = matches.filter(match => 
+            match.teamNumber === parseInt(selectedTeam)
+        ).sort((a, b) => a.matchNumber - b.matchNumber);
+
+        if (teamMatches.length === 0) return;
+
+        const labels = teamMatches.map(match => match.matchNumber);
+        const autoData = teamMatches.map(match => match.autoPoints || 0);
+        const teleopData = teamMatches.map(match => match.teleopPoints || 0);
+        const endgameData = teamMatches.map(match => match.endgamePoints || 0);
+        const totalData = teamMatches.map(match => match.totalPoints || 0);
+
         if (chartInstance.current) {
             chartInstance.current.destroy();
         }
-
-        if (matches.length === 0) {
-            // Show "no data" message
-            const ctx = chartRef.current.getContext('2d');
-            ctx.clearRect(0, 0, chartRef.current.width, chartRef.current.height);
-            ctx.font = '20px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#666';
-            ctx.fillText('Enter data for graph to begin', chartRef.current.width / 2, chartRef.current.height / 2);
-            return;
-        }
-
-        if (!selectedTeam) {
-            // Show all teams' total points
-            const uniqueTeams = [...new Set(matches.map(match => match.teamNumber))];
-            const datasets = uniqueTeams.map(teamNumber => {
-                const teamMatches = matches
-                    .filter(match => match.teamNumber === teamNumber)
-                    .sort((a, b) => a.matchNumber - b.matchNumber);
-                
-                return {
-                    label: `Team ${teamNumber}`,
-                    data: teamMatches.map(match => ({
-                        x: match.matchNumber,
-                        y: match.totalPoints
-                    })),
-                    borderColor: `hsl(${(teamNumber * 137.508) % 360}, 70%, 50%)`, // Generate unique color for each team
-                    backgroundColor: `hsla(${(teamNumber * 137.508) % 360}, 70%, 50%, 0.2)`,
-                    tension: 0.4
-                };
-            });
-
-            const ctx = chartRef.current.getContext('2d');
-            chartInstance.current = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: datasets
-                },
-                options: {
-                    responsive: true,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    plugins: {
-                        zoom: {
-                            zoom: {
-                                wheel: {
-                                    enabled: true,
-                                    modifierKey: 'ctrl'
-                                },
-                                drag: {
-                                    enabled: true,
-                                    modifierKey: 'ctrl'
-                                },
-                                mode: 'x'
-                            },
-                            pan: {
-                                enabled: true,
-                                mode: 'x',
-                                modifierKey: 'ctrl'
-                            }
-                        },
-                        annotation: {
-                            annotations: {}
-                        },
-                        legend: {
-                            position: 'top'
-                        },
-                        title: {
-                            display: true,
-                            text: 'All Teams Performance'
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Total Points'
-                            }
-                        },
-                        x: {
-                            type: 'linear',
-                            title: {
-                                display: true,
-                                text: 'Match Number'
-                            }
-                        }
-                    }
-                }
-            });
-            return;
-        }
-
-        // Show individual team details (existing code for single team view)
-        const filteredMatches = matches.filter(match => match.teamNumber === parseInt(selectedTeam));
-        const matchNumbers = filteredMatches.map(match => match.matchNumber);
-        const autoPoints = filteredMatches.map(match => match.autoPoints);
-        const teleopPoints = filteredMatches.map(match => match.teleopPoints);
-        const endgamePoints = filteredMatches.map(match => match.endgamePoints);
-        const totalPoints = filteredMatches.map(match => match.totalPoints);
 
         const ctx = chartRef.current.getContext('2d');
         chartInstance.current = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: matchNumbers,
+                labels: labels,
                 datasets: [
                     {
                         label: 'Auto Points',
-                        data: autoPoints,
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                        tension: 0.4
+                        data: autoData,
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1
                     },
                     {
                         label: 'Teleop Points',
-                        data: teleopPoints,
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        tension: 0.4
+                        data: teleopData,
+                        borderColor: 'rgb(54, 162, 235)',
+                        tension: 0.1
                     },
                     {
                         label: 'Endgame Points',
-                        data: endgamePoints,
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        tension: 0.4
+                        data: endgameData,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
                     },
                     {
                         label: 'Total Points',
-                        data: totalPoints,
-                        borderColor: 'rgba(153, 102, 255, 1)',
-                        backgroundColor: 'rgba(153, 102, 255, 0.2)',
-                        tension: 0.4,
-                        borderDash: [5, 5]
+                        data: totalData,
+                        borderColor: 'rgb(153, 102, 255)',
+                        tension: 0.1
                     }
                 ]
             },
             options: {
                 responsive: true,
-                interaction: {
-                    mode: 'index',
-                    intersect: false
-                },
+                maintainAspectRatio: false,
                 plugins: {
                     zoom: {
                         zoom: {
                             wheel: {
                                 enabled: true,
-                                modifierKey: 'ctrl'
                             },
-                            drag: {
-                                enabled: true,
-                                modifierKey: 'ctrl'
+                            pinch: {
+                                enabled: true
                             },
-                            mode: 'x'
+                            mode: 'xy',
                         },
                         pan: {
                             enabled: true,
-                            mode: 'x',
-                            modifierKey: 'ctrl'
+                            mode: 'xy',
                         }
-                    },
-                    annotation: {
-                        annotations: {}
-                    },
-                    legend: {
-                        position: 'top'
-                    },
-                    title: {
-                        display: true,
-                        text: `Team ${selectedTeam} Performance`
                     }
                 },
                 scales: {
                     y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Points'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Match Number'
-                        }
+                        beginAtZero: true
                     }
                 }
             }
         });
-    };
+
+        // Update match history
+        setMatchHistory(teamMatches);
+    }, [selectedTeam, matches]);
 
     const compareTeams = () => {
         if (!compareTeam1 || !compareTeam2) {
@@ -688,43 +549,56 @@ function Analysis() {
         `;
     };
 
-    const searchTeam = (teamNumber = null) => {
+    const searchTeam = useCallback((teamNumber = null) => {
         const searchValue = teamNumber || selectedTeam;
         
-        // Add logging to understand what's happening
-        console.log('Search Value:', searchValue);
-        console.log('All Matches:', matches);
-        console.log('Selected Team:', selectedTeam);
-
         if (!searchValue) {
             showAlert('Please enter a team number', 'warning');
             return;
         }
 
-        // Ensure searchValue is converted to a number
-        const teamNumberToSearch = parseInt(searchValue, 10);
-        console.log('Parsed Team Number:', teamNumberToSearch);
+        // Update URL with the searched team
+        navigate(`/analysis?team=${searchValue}`);
 
-        const teamMatches = matches.filter(match => {
-            console.log('Comparing:', match.teamNumber, 'with', teamNumberToSearch);
-            return match.teamNumber === teamNumberToSearch;
-        });
-
-        console.log('Filtered Matches:', teamMatches);
+        const teamMatches = matches.filter(match => 
+            match.teamNumber === parseInt(searchValue)
+        );
 
         if (teamMatches.length === 0) {
-            showAlert('No matches found for this team', 'warning');
-            setMatchHistory([]);
+            showAlert(`No matches found for team ${searchValue}`, 'warning');
             return;
         }
 
-        updateChart();
+        setSelectedTeam(searchValue);
         setMatchHistory(teamMatches);
-        
-        // Calculate and display team records
-        const records = calculateTeamRecords(teamNumberToSearch);
-        renderTeamRecords(records);
-    };
+        updateChart();
+    }, [selectedTeam, matches, navigate, updateChart]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const teamFromUrl = params.get('team');
+        if (teamFromUrl) {
+            setSelectedTeam(teamFromUrl);
+            searchTeam(teamFromUrl);
+        }
+    }, [location, searchTeam]);
+
+    useEffect(() => {
+        console.log('Matches loaded:', matches);
+        if (matches && matches.length > 0) {
+            const firstMatch = matches[0];
+            console.log('First Match Structure:', {
+                teamNumber: typeof firstMatch.teamNumber,
+                autoPoints: typeof firstMatch.autoPoints,
+                matchNumber: typeof firstMatch.matchNumber
+            });
+            
+            // Update chart if there's a selected team
+            if (selectedTeam) {
+                searchTeam(selectedTeam);
+            }
+        }
+    }, [matches, selectedTeam, searchTeam]);
 
     const clearData = () => {
         setSelectedTeam('');
