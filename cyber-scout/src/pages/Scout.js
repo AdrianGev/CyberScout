@@ -656,8 +656,8 @@ function Scout() {
           </div>
           <div className="card-body">
             <div className="row mb-3">
-              <div className="col-12 col-sm-6 mb-3 mb-sm-0">
-                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
+              <div className="col-12 mb-4">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center' }}>
                   <input
                     type="checkbox"
                     name="movedInAuto"
@@ -673,15 +673,15 @@ function Scout() {
                   <label className="form-check-label ms-2">Moved in Auto</label>
                 </div>
               </div>
-              <div className="col-12 col-sm-6">
-                <div className="d-flex flex-column flex-sm-row align-items-start align-items-sm-center" 
-                     style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
-                  <label className="form-label mb-2 mb-sm-0 me-sm-2">Other Alliance Members Moved:</label>
+              <div className="col-12">
+                <div className="d-flex flex-column" 
+                     style={{ transform: 'scale(1.5)', transformOrigin: 'left center' }}>
+                  <label className="form-label mb-3">Other Alliance Members Moved:</label>
                   <div className="d-flex align-items-center">
                     <input
                       type="range"
                       className="form-range"
-                      style={{ width: '80px' }}
+                      style={{ width: '120px' }}
                       name="otherAllianceMembersMoved"
                       min="0"
                       max="2"
@@ -689,7 +689,7 @@ function Scout() {
                       value={formData.otherAllianceMembersMoved}
                       onChange={handleChange}
                     />
-                    <span className="ms-2">{formData.otherAllianceMembersMoved}</span>
+                    <span className="ms-3 fs-5">{formData.otherAllianceMembersMoved}</span>
                   </div>
                 </div>
               </div>
