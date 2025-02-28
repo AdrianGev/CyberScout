@@ -68,18 +68,13 @@ function Scout() {
   // Fetch match data when match number changes
   useEffect(() => {
     const fetchMatchData = async () => {
-      if (!selectedEvent || !formData.matchNumber || !formData.teamNumber) return;
-
       try {
-        const matchKey = `${selectedEvent.key}_qm${formData.matchNumber}`;
-        const matchData = await tbaService.getMatch(matchKey);
-        const position = tbaService.getTeamPositionInMatch(matchData, formData.teamNumber);
-        setCorrectPosition(position);
-        
-        // Auto-select the correct position if none is selected
-        if (position && !formData.startingPosition) {
-          setFormData(prev => ({ ...prev, startingPosition: position }));
-          handleChange({ target: { name: 'startingPosition', value: position }});
+        if (!selectedEvent || !formData.matchNumber || !formData.teamNumber) return;
+
+        const matchData = await tbaService.getMatchData(selectedEvent.key, formData.matchNumber, formData.teamNumber);
+        if (matchData && matchData.position) {
+          setFormData(prev => ({ ...prev, startingPosition: matchData.position }));
+          handleChange({ target: { name: 'startingPosition', value: matchData.position }});
         }
       } catch (error) {
         console.error('Error fetching match data:', error);
@@ -87,7 +82,7 @@ function Scout() {
     };
 
     fetchMatchData();
-  }, [selectedEvent, formData.matchNumber, formData.teamNumber]);
+  }, [selectedEvent, formData.matchNumber, formData.teamNumber, handleChange]);
 
   const validateTeamAndMatch = (matchNum, teamNum) => {
     // Basic validation for match number and team number
@@ -336,37 +331,17 @@ function Scout() {
 
   // Update points whenever form changes
   useEffect(() => {
-    const autoPoints = calculateAutoCoralPoints() + 
-      ((Number(formData.autoAlgaeProcessor) * 6) + (Number(formData.autoAlgaeNet) * 4));
-    
-    const teleopPoints = calculateTeleopCoralPoints() + 
-      ((Number(formData.teleopAlgaeProcessor) * 6) + (Number(formData.teleopAlgaeNet) * 4)) +
-      (Number(formData.humanPlayerNetScoring) * 4);
-    
-    const endgamePoints = calculateEndgamePoints();
-    
-    const totalPoints = !formData.useScoreOverride ? 
-      (autoPoints + teleopPoints + endgamePoints) :
-      Number(formData.scoreOverride);
-
-    const finalRankPoints = !formData.useRankPointsOverride ? 
-      calculateRankPoints(totalPoints) :
-      Number(formData.rankPointsOverride);
-
-    setFormData(prevData => ({
-      ...prevData,
-      autoPoints,
-      teleopTotalPoints: teleopPoints,
-      endgameTotalPoints: endgamePoints,
-      matchTotalPoints: totalPoints,
-      totalRankPoints: finalRankPoints,
-      autoRankPoint: formData.movedInAuto && formData.otherAllianceMembersMoved === 2 ? 1 : 0
-    }));
-  }, [formData.autoCoralL1, formData.autoCoralL2, formData.autoCoralL3, formData.autoCoralL4,
-      formData.teleopCoralL1, formData.teleopCoralL2, formData.teleopCoralL3, formData.teleopCoralL4,
-      formData.autoAlgaeProcessor, formData.autoAlgaeNet, formData.teleopAlgaeProcessor, formData.teleopAlgaeNet,
-      formData.endgamePosition, formData.matchResult, formData.humanPlayerNetScoring, formData.useScoreOverride, 
-      formData.useRankPointsOverride, formData.movedInAuto, formData.otherAllianceMembersMoved]);
+    if (!formData.scoreOverride) {
+      calculateTotalPoints();
+    }
+  }, [
+    calculateAutoCoralPoints,
+    calculateEndgamePoints,
+    calculateRankPoints,
+    calculateTeleopCoralPoints,
+    formData.rankPointsOverride,
+    formData.scoreOverride
+  ]);
 
   const handleSubmit = (e) => {
     e.preventDefault();

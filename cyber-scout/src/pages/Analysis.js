@@ -50,7 +50,7 @@ function Analysis() {
             setSelectedTeam(teamFromUrl);
             searchTeam(teamFromUrl);
         }
-    }, [location]);
+    }, [location, searchTeam]);
 
     const calculatePercentageChange = (start, end) => {
         if (!start || !end) return null;
@@ -315,64 +315,70 @@ function Analysis() {
         let comparisonData = null;
         let equalMatchesWarning = false;
 
-        if (comparisonMode === 'overall') {
-            // Check if teams have equal number of matches
-            if (team1Matches.length !== team2Matches.length) {
-                equalMatchesWarning = true;
-            }
-
-            // Calculate based on points comparison mode
-            const calculatePoints = (matches) => {
-                const totalAutoPoints = matches.reduce((sum, match) => sum + match.autoPoints, 0);
-                const totalTeleopPoints = matches.reduce((sum, match) => sum + match.teleopPoints, 0);
-                const totalEndgamePoints = matches.reduce((sum, match) => sum + (match.endgamePoints || 0), 0);
-                const totalPoints = matches.reduce((sum, match) => sum + match.totalPoints, 0);
-
-                return pointsComparisonMode === 'average' 
-                    ? {
-                        autoPoints: totalAutoPoints / matches.length,
-                        teleopPoints: totalTeleopPoints / matches.length,
-                        endgamePoints: totalEndgamePoints / matches.length,
-                        totalPoints: totalPoints / matches.length
-                    }
-                    : {
-                        autoPoints: totalAutoPoints,
-                        teleopPoints: totalTeleopPoints,
-                        endgamePoints: totalEndgamePoints,
-                        totalPoints: totalPoints
-                    };
-            };
-
-            // Overall points
-            comparisonData = {
-                team1: calculatePoints(team1Matches),
-                team2: calculatePoints(team2Matches)
-            };
-        } else if (comparisonMode === 'specific') {
-            // Specific match comparison
-            const matchNumber = parseInt(specificMatch);
-            const team1SpecificMatch = team1Matches.find(match => match.matchNumber === matchNumber);
-            const team2SpecificMatch = team2Matches.find(match => match.matchNumber === matchNumber);
-
-            if (!team1SpecificMatch || !team2SpecificMatch) {
-                showAlert('Selected match not found for one or both teams', 'warning');
-                return;
-            }
-
-            comparisonData = {
-                team1: {
-                    autoPoints: team1SpecificMatch.autoPoints,
-                    teleopPoints: team1SpecificMatch.teleopPoints,
-                    endgamePoints: team1SpecificMatch.endgamePoints || 0,
-                    totalPoints: team1SpecificMatch.totalPoints
-                },
-                team2: {
-                    autoPoints: team2SpecificMatch.autoPoints,
-                    teleopPoints: team2SpecificMatch.teleopPoints,
-                    endgamePoints: team2SpecificMatch.endgamePoints || 0,
-                    totalPoints: team2SpecificMatch.totalPoints
+        switch (comparisonMode) {
+            case 'overall':
+                // Check if teams have equal number of matches
+                if (team1Matches.length !== team2Matches.length) {
+                    equalMatchesWarning = true;
                 }
-            };
+
+                // Calculate based on points comparison mode
+                const calculatePoints = (matches) => {
+                    const totalAutoPoints = matches.reduce((sum, match) => sum + match.autoPoints, 0);
+                    const totalTeleopPoints = matches.reduce((sum, match) => sum + match.teleopPoints, 0);
+                    const totalEndgamePoints = matches.reduce((sum, match) => sum + (match.endgamePoints || 0), 0);
+                    const totalPoints = matches.reduce((sum, match) => sum + match.totalPoints, 0);
+
+                    return pointsComparisonMode === 'average' 
+                        ? {
+                            autoPoints: totalAutoPoints / matches.length,
+                            teleopPoints: totalTeleopPoints / matches.length,
+                            endgamePoints: totalEndgamePoints / matches.length,
+                            totalPoints: totalPoints / matches.length
+                        }
+                        : {
+                            autoPoints: totalAutoPoints,
+                            teleopPoints: totalTeleopPoints,
+                            endgamePoints: totalEndgamePoints,
+                            totalPoints: totalPoints
+                        };
+                };
+
+                // Overall points
+                comparisonData = {
+                    team1: calculatePoints(team1Matches),
+                    team2: calculatePoints(team2Matches)
+                };
+                break;
+            case 'specific':
+                // Specific match comparison
+                const matchNumber = parseInt(specificMatch);
+                const team1SpecificMatch = team1Matches.find(match => match.matchNumber === matchNumber);
+                const team2SpecificMatch = team2Matches.find(match => match.matchNumber === matchNumber);
+
+                if (!team1SpecificMatch || !team2SpecificMatch) {
+                    showAlert('Selected match not found for one or both teams', 'warning');
+                    return;
+                }
+
+                comparisonData = {
+                    team1: {
+                        autoPoints: team1SpecificMatch.autoPoints,
+                        teleopPoints: team1SpecificMatch.teleopPoints,
+                        endgamePoints: team1SpecificMatch.endgamePoints || 0,
+                        totalPoints: team1SpecificMatch.totalPoints
+                    },
+                    team2: {
+                        autoPoints: team2SpecificMatch.autoPoints,
+                        teleopPoints: team2SpecificMatch.teleopPoints,
+                        endgamePoints: team2SpecificMatch.endgamePoints || 0,
+                        totalPoints: team2SpecificMatch.totalPoints
+                    }
+                };
+                break;
+            default:
+                console.warn(`Unhandled comparison mode: ${comparisonMode}`);
+                break;
         }
 
         // Destroy existing chart if it exists

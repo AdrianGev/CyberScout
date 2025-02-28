@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { tbaService } from '../services/tba-service';
 import { setSelectedDistrict, setSelectedEvent, setEventMatches, setLoading, setError } from '../store/scoutingSlice';
-import debounce from 'lodash/debounce';
 
 function CompetitionSelector() {
   const dispatch = useDispatch();
@@ -13,48 +12,45 @@ function CompetitionSelector() {
   const selectedDistrict = useSelector(state => state.scouting.selectedDistrict);
   const selectedEvent = useSelector(state => state.scouting.selectedEvent);
 
-  // Create a debounced function to fetch team events
-  const debouncedFetchTeamEvents = useCallback(
-    debounce(async (team, selectedYear) => {
-      if (!team) return;
+  // Create a function to fetch team events
+  const fetchTeamEvents = async (team, selectedYear) => {
+    if (!team) return;
 
-      try {
-        dispatch(setLoading(true));
-        dispatch(setSelectedDistrict(null)); // Clear district selection
-        
-        // Fetch team's events for the selected year
-        const teamEvents = await tbaService.getTeamEvents(team, selectedYear);
-        
-        // Sort events by start date (most recent first) and take the last 3
-        const sortedEvents = teamEvents.sort((a, b) => 
-          new Date(b.start_date) - new Date(a.start_date)
-        ).slice(0, 3);
-        
-        setEvents(sortedEvents);
-        
-        // Auto-select the most recent event
-        if (sortedEvents.length > 0) {
-          dispatch(setSelectedEvent(sortedEvents[0]));
-          // Fetch matches for the selected event
-          const matchesData = await tbaService.getEventMatches(sortedEvents[0].key);
-          dispatch(setEventMatches(matchesData));
-        }
-      } catch (error) {
-        dispatch(setError('Failed to fetch team events'));
-        console.error('Error fetching team events:', error);
-      } finally {
-        dispatch(setLoading(false));
+    try {
+      dispatch(setLoading(true));
+      dispatch(setSelectedDistrict(null)); // Clear district selection
+      
+      // Fetch team's events for the selected year
+      const teamEvents = await tbaService.getTeamEvents(team, selectedYear);
+      
+      // Sort events by start date (most recent first) and take the last 3
+      const sortedEvents = teamEvents.sort((a, b) => 
+        new Date(b.start_date) - new Date(a.start_date)
+      ).slice(0, 3);
+      
+      setEvents(sortedEvents);
+      
+      // Auto-select the most recent event
+      if (sortedEvents.length > 0) {
+        dispatch(setSelectedEvent(sortedEvents[0]));
+        // Fetch matches for the selected event
+        const matchesData = await tbaService.getEventMatches(sortedEvents[0].key);
+        dispatch(setEventMatches(matchesData));
       }
-    }, 1000),
-    [dispatch]
-  );
+    } catch (error) {
+      dispatch(setError('Failed to fetch team events'));
+      console.error('Error fetching team events:', error);
+    } finally {
+      dispatch(setLoading(false));
+    }
+  };
 
-  // Cancel debounced function on unmount
+  // Cancel function on unmount
   useEffect(() => {
     return () => {
-      debouncedFetchTeamEvents.cancel();
+      // No need to cancel, as it's not a debounced function
     };
-  }, [debouncedFetchTeamEvents]);
+  }, []);
 
   // Fetch districts when year changes
   useEffect(() => {
@@ -107,8 +103,8 @@ function CompetitionSelector() {
       return;
     }
 
-    // Trigger debounced search
-    debouncedFetchTeamEvents(value, year);
+    // Trigger search
+    fetchTeamEvents(value, year);
   };
 
   const handleDistrictChange = (e) => {
