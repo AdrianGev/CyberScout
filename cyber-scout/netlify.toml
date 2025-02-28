@@ -1,3 +1,4 @@
 [build]
-command = "npm run build"
-publish = "build"
+  base = "cyber-scout"   # Tells Netlify to go into the subfolder
+  command = "npm run build"
+  publish = "cyber-scout/build"
