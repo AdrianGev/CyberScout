@@ -6,7 +6,7 @@ const initialState = {
   loading: false,
   error: null,
   selectedDistrict: null,
-  selectedEvent: null,
+  selectedEvent: { key: 'default' },
   eventMatches: [],
 };
 

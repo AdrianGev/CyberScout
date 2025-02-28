@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -14,6 +14,11 @@ function Scout() {
   const [qrData, setQRData] = useState('');
   const [tbaRankPoints, setTbaRankPoints] = useState(0);
   const [apiError, setApiError] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  const eventMatches = useSelector(state => state.scouting.eventMatches);
+  const selectedEvent = useSelector(state => state.scouting.selectedEvent);
+  const [correctPosition, setCorrectPosition] = useState(null);
+
   const [formData, setFormData] = useState({
     // Scout Information
     matchNumber: '',
@@ -61,10 +66,28 @@ function Scout() {
     useRankPointsOverride: false,
   });
 
-  const [validationError, setValidationError] = useState('');
-  const eventMatches = useSelector(state => state.scouting.eventMatches);
-  const selectedEvent = useSelector(state => state.scouting.selectedEvent);
-  const [correctPosition, setCorrectPosition] = useState(null);
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+
+    // Update autoRankPoint when movedInAuto or otherAllianceMembersMoved changes
+    if (name === 'movedInAuto' || name === 'otherAllianceMembersMoved') {
+      const autoQualifies = 
+        (name === 'movedInAuto' ? value : prev.movedInAuto) && 
+        Number(name === 'otherAllianceMembersMoved' ? value : prev.otherAllianceMembersMoved) === 2;
+      setFormData(prev => ({ ...prev, autoRankPoint: autoQualifies ? 1 : 0 }));
+    }
+
+    // Validate team and match numbers when either changes
+    if (name === 'matchNumber' || name === 'teamNumber') {
+      if (formData.matchNumber && formData.teamNumber) {
+        validateTeamAndMatch(
+          name === 'matchNumber' ? value : formData.matchNumber,
+          name === 'teamNumber' ? value : formData.teamNumber
+        );
+      }
+    }
+  }, [formData]);
 
   useEffect(() => {
     const fetchMatchData = async () => {
@@ -144,36 +167,6 @@ function Scout() {
 
     setValidationError('');
     return true;
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => {
-      const newData = {
-        ...prev,
-        [name]: value
-      };
-
-      // Update autoRankPoint when movedInAuto or otherAllianceMembersMoved changes
-      if (name === 'movedInAuto' || name === 'otherAllianceMembersMoved') {
-        const autoQualifies = 
-          (name === 'movedInAuto' ? value : prev.movedInAuto) && 
-          Number(name === 'otherAllianceMembersMoved' ? value : prev.otherAllianceMembersMoved) === 2;
-        newData.autoRankPoint = autoQualifies ? 1 : 0;
-      }
-
-      return newData;
-    });
-
-    // Validate team and match numbers when either changes
-    if (name === 'matchNumber' || name === 'teamNumber') {
-      if (formData.matchNumber && formData.teamNumber) {
-        validateTeamAndMatch(
-          name === 'matchNumber' ? value : formData.matchNumber,
-          name === 'teamNumber' ? value : formData.teamNumber
-        );
-      }
-    }
   };
 
   // Format data for Google Sheets (tab-separated values)
