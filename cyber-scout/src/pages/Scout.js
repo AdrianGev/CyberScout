@@ -13,6 +13,7 @@ function Scout() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrData, setQRData] = useState('');
   const [tbaRankPoints, setTbaRankPoints] = useState(0);
+  const [apiError, setApiError] = useState(false);
   const [formData, setFormData] = useState({
     // Scout Information
     matchNumber: '',
@@ -65,7 +66,6 @@ function Scout() {
   const selectedEvent = useSelector(state => state.scouting.selectedEvent);
   const [correctPosition, setCorrectPosition] = useState(null);
 
-  // Fetch match data when match number changes
   useEffect(() => {
     const fetchMatchData = async () => {
       try {
@@ -78,6 +78,7 @@ function Scout() {
         }
       } catch (error) {
         console.error('Error fetching match data:', error);
+        setApiError(true);
       }
     };
 
@@ -423,6 +424,11 @@ function Scout() {
 
   return (
     <div className="container mt-4">
+      {apiError && (
+        <div className="alert alert-danger" role="alert">
+          Error fetching TBA data. Please try again later.
+        </div>
+      )}
       <h2 className="text-center mb-4">2025 Reefscape - Match Scouting</h2>
       
       {validationError && (
