@@ -21,6 +21,7 @@ function Scout() {
 
   const [formData, setFormData] = useState({
     // Scout Information
+    scouterName: '',  // Add scouter name field
     matchNumber: '',
     teamNumber: '',
     startingPosition: '',
@@ -164,6 +165,7 @@ function Scout() {
 
   const confirmClearForm = () => {
     setFormData({
+      scouterName: '',  // Add scouter name field
       matchNumber: '',
       teamNumber: '',
       startingPosition: '',
@@ -204,7 +206,8 @@ function Scout() {
   // Format data for Google Sheets (tab-separated values)
   const formatDataForSheets = (data) => {
     const orderedFields = [
-      // Match & Team Info
+      // Scouter & Match Info
+      data.scouterName,
       data.matchNumber,
       data.teamNumber,
       data.startingPosition,
@@ -397,6 +400,7 @@ function Scout() {
     
     // Reset form
     setFormData({
+      scouterName: '',  // Add scouter name field
       matchNumber: '',
       teamNumber: '',
       startingPosition: '',
@@ -460,7 +464,29 @@ function Scout() {
       
       <h2 className="text-center mb-4">2025 Reefscape - Match Scouting</h2>
       
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="scout-form">
+        {/* Scouter Information */}
+        <div className="card mb-4">
+          <div className="card-header bg-secondary text-white">
+            <h5 className="mb-0">Scouter Information</h5>
+          </div>
+          <div className="card-body">
+            <div className="form-group">
+              <label htmlFor="scouterName">Scouter's Name:</label>
+              <input
+                type="text"
+                id="scouterName"
+                name="scouterName"
+                className="form-control"
+                value={formData.scouterName}
+                onChange={handleChange}
+                placeholder="Enter your name"
+                required
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Match Information */}
         <div className="card mb-3">
           <div className="card-header bg-primary text-white">
