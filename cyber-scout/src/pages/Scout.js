@@ -114,57 +114,47 @@ function Scout() {
   const validateTeamAndMatch = (matchNum, teamNum) => {
     // Basic validation for match number and team number
     if (!matchNum || !teamNum) {
+      setValidationError('Please enter both match and team numbers');
       return false;
     }
 
+    // Match number validation
     if (isNaN(matchNum) || matchNum < 1) {
+      setValidationError('Please enter a valid match number');
       return false;
     }
 
-    if (isNaN(teamNum) || teamNum < 1) {
+    // Team number validation
+    if (isNaN(teamNum) || teamNum < 1 || teamNum > 9999) {
+      setValidationError('Please enter a valid team number');
       return false;
     }
 
-    // If we have event data, we can validate against it, but it's optional
-    if (selectedEvent && eventMatches.length > 0) {
-      const match = eventMatches.find(m => 
-        m.match_number.toString() === matchNum.toString() && 
-        m.comp_level === 'qm'
+    // Check if match exists in eventMatches
+    if (eventMatches && eventMatches.length > 0) {
+      const matchExists = eventMatches.some(match => 
+        match.match_number === parseInt(matchNum)
       );
 
+      if (!matchExists) {
+        setValidationError(`Match ${matchNum} not found in the event schedule`);
+        return false;
+      }
+
+      // Check if team is in the match
+      const match = eventMatches.find(m => m.match_number === parseInt(matchNum));
       if (match) {
-        const allTeams = [
-          ...match.alliances.red.team_keys,
-          ...match.alliances.blue.team_keys
-        ].map(key => key.replace('frc', ''));
+        const teamInMatch = [...match.alliances.blue.team_keys, ...match.alliances.red.team_keys]
+          .some(teamKey => parseInt(teamKey.replace('frc', '')) === parseInt(teamNum));
 
-        if (allTeams.includes(teamNum.toString())) {
-          // Set match result and rank points if we have the data
-          const isRedAlliance = match.alliances.red.team_keys.includes(`frc${teamNum}`);
-          const redScore = match.alliances.red.score;
-          const blueScore = match.alliances.blue.score;
-          
-          let matchResult = '';
-          if (redScore > blueScore) {
-            matchResult = isRedAlliance ? 'win' : 'loss';
-          } else if (blueScore > redScore) {
-            matchResult = isRedAlliance ? 'loss' : 'win';
-          } else {
-            matchResult = 'tie';
-          }
-
-          const allianceData = isRedAlliance ? match.alliances.red : match.alliances.blue;
-          const tbaRankPointsValue = allianceData.rp || 0;
-          setTbaRankPoints(tbaRankPointsValue);
-
-          setFormData(prev => ({
-            ...prev,
-            matchResult
-          }));
+        if (!teamInMatch) {
+          setValidationError(`Team ${teamNum} is not scheduled for match ${matchNum}`);
+          return false;
         }
       }
     }
 
+    setValidationError('');
     return true;
   };
 
