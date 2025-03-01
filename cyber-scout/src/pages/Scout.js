@@ -13,8 +13,8 @@ function Scout() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrData, setQRData] = useState('');
   const [tbaRankPoints, setTbaRankPoints] = useState(0);
-  const [apiError, setApiError] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const eventMatches = useSelector(state => state.scouting.eventMatches);
   const selectedEvent = useSelector(state => state.scouting.selectedEvent);
   const [correctPosition, setCorrectPosition] = useState(null);
@@ -105,7 +105,6 @@ function Scout() {
         }
       } catch (error) {
         console.error('Error fetching match data:', error);
-        setApiError(true);
       }
     };
 
@@ -115,17 +114,14 @@ function Scout() {
   const validateTeamAndMatch = (matchNum, teamNum) => {
     // Basic validation for match number and team number
     if (!matchNum || !teamNum) {
-      setValidationError('Please enter both match and team numbers');
       return false;
     }
 
     if (isNaN(matchNum) || matchNum < 1) {
-      setValidationError('Please enter a valid match number');
       return false;
     }
 
     if (isNaN(teamNum) || teamNum < 1) {
-      setValidationError('Please enter a valid team number');
       return false;
     }
 
@@ -169,8 +165,50 @@ function Scout() {
       }
     }
 
-    setValidationError('');
     return true;
+  };
+
+  const handleClearForm = () => {
+    setShowClearConfirm(true);
+  };
+
+  const confirmClearForm = () => {
+    setFormData({
+      matchNumber: '',
+      teamNumber: '',
+      startingPosition: '',
+      movedInAuto: false,
+      otherAllianceMembersMoved: 0,
+      autoPoints: 0,
+      autoCoralL1: 0,
+      autoCoralL2: 0,
+      autoCoralL3: 0,
+      autoCoralL4: 0,
+      autoAlgaeProcessor: 0,
+      autoAlgaeNet: 0,
+      autoNotes: '',
+      autoRankPoint: 0,
+      teleopCoralL1: 0,
+      teleopCoralL2: 0,
+      teleopCoralL3: 0,
+      teleopCoralL4: 0,
+      teleopCoralMissed: 0,
+      teleopAlgaeProcessor: 0,
+      teleopAlgaeNet: 0,
+      humanPlayerNetScoring: 0,
+      humanPlayerNetMisses: 0,
+      teleopNotes: '',
+      teleopTotalPoints: 0,
+      endgamePosition: '', 
+      endgameTotalPoints: 0,
+      matchResult: '', 
+      matchTotalPoints: 0,
+      scoreOverride: 0,
+      rankPointsOverride: 0,
+      useScoreOverride: false,
+      useRankPointsOverride: false,
+    });
+    setShowClearConfirm(false);
   };
 
   // Format data for Google Sheets (tab-separated values)
@@ -369,16 +407,9 @@ function Scout() {
     
     // Reset form
     setFormData({
-      // Scout Information
       matchNumber: '',
       teamNumber: '',
       startingPosition: '',
-      // Safety and Fouls
-      autoStop: false,
-      eStop: false,
-      hitOpponentCage: false,
-      crossedOpponentSide: false,
-      // Autonomous
       movedInAuto: false,
       otherAllianceMembersMoved: 0,
       autoPoints: 0,
@@ -390,7 +421,6 @@ function Scout() {
       autoAlgaeNet: 0,
       autoNotes: '',
       autoRankPoint: 0,
-      // Teleop
       teleopCoralL1: 0,
       teleopCoralL2: 0,
       teleopCoralL3: 0,
@@ -402,13 +432,10 @@ function Scout() {
       humanPlayerNetMisses: 0,
       teleopNotes: '',
       teleopTotalPoints: 0,
-      // Endgame
-      endgamePosition: '', // 'park', 'shallow', 'deep', 'none'
+      endgamePosition: '', 
       endgameTotalPoints: 0,
-      // Match Results
-      matchResult: '', // 'win', 'loss', 'tie'
+      matchResult: '', 
       matchTotalPoints: 0,
-      // Score Override
       scoreOverride: 0,
       rankPointsOverride: 0,
       useScoreOverride: false,
@@ -421,19 +448,28 @@ function Scout() {
 
   return (
     <div className="container mt-4">
-      {apiError && (
-        <div className="alert alert-danger" role="alert">
-          Error fetching TBA data. Please try again later.
+      {showClearConfirm && (
+        <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Confirm Clear Form</h5>
+                <button type="button" className="btn-close" onClick={() => setShowClearConfirm(false)}></button>
+              </div>
+              <div className="modal-body">
+                <p>Do you want to clear the form?</p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-primary" onClick={confirmClearForm}>Yes I want to</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowClearConfirm(false)}>No I don't</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
+      
       <h2 className="text-center mb-4">2025 Reefscape - Match Scouting</h2>
       
-      {validationError && (
-        <div className="alert alert-danger" role="alert">
-          {validationError}
-        </div>
-      )}
-
       <form onSubmit={handleSubmit}>
         {/* Match Information */}
         <div className="card mb-3">
@@ -468,6 +504,15 @@ function Scout() {
                     required
                   />
                 </div>
+              </div>
+              <div className="col-md-4 d-flex align-items-end">
+                <button 
+                  type="button" 
+                  className="btn btn-outline-secondary" 
+                  onClick={handleClearForm}
+                >
+                  Clear Form
+                </button>
               </div>
             </div>
           </div>
