@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/CyberScout/static/css/main.5572a69e.css",
-    "main.js": "/CyberScout/static/js/main.c73a1c23.js",
+    "main.js": "/CyberScout/static/js/main.b27b690f.js",
     "static/media/bootstrap-icons.woff?": "/CyberScout/static/media/bootstrap-icons.39795c0b4513de014cf8.woff",
     "static/media/bootstrap-icons.woff2?": "/CyberScout/static/media/bootstrap-icons.b7bcc075b395c14ce8c2.woff2",
     "index.html": "/CyberScout/index.html",
     "main.5572a69e.css.map": "/CyberScout/static/css/main.5572a69e.css.map",
-    "main.c73a1c23.js.map": "/CyberScout/static/js/main.c73a1c23.js.map"
+    "main.b27b690f.js.map": "/CyberScout/static/js/main.b27b690f.js.map"
   },
   "entrypoints": [
     "static/css/main.5572a69e.css",
-    "static/js/main.c73a1c23.js"
+    "static/js/main.b27b690f.js"
   ]
 }
