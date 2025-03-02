@@ -18,6 +18,7 @@ function Scout() {
   const eventMatches = useSelector(state => state.scouting.eventMatches);
   const selectedEvent = useSelector(state => state.scouting.selectedEvent);
   const [correctPosition, setCorrectPosition] = useState(null);
+  const [showInfoPanel, setShowInfoPanel] = useState(false);
 
   const [formData, setFormData] = useState({
     // Scout Information
@@ -28,6 +29,7 @@ function Scout() {
     // Safety and Fouls
     autoStop: false,
     eStop: false,
+    died: false, // Add died field
     hitOpponentCage: false,
     crossedOpponentSide: false,
     // Autonomous
@@ -66,6 +68,65 @@ function Scout() {
     useScoreOverride: false,
     useRankPointsOverride: false,
   });
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const startingPositionSection = document.querySelector('.starting-position-section');
+      if (startingPositionSection) {
+        const rect = startingPositionSection.getBoundingClientRect();
+        // Show panel when the bottom of the starting position section moves above the viewport
+        setShowInfoPanel(rect.bottom < 0);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll(); // Check initial scroll position
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const formatPosition = (pos) => {
+    switch(pos) {
+      case 'blue1': return 'B1';
+      case 'blue2': return 'B2';
+      case 'blue3': return 'B3';
+      case 'red1': return 'R1';
+      case 'red2': return 'R2';
+      case 'red3': return 'R3';
+      default: return '';
+    }
+  };
+
+  const InfoPanel = () => (
+    <div 
+      style={{
+        position: 'fixed',
+        top: '20px',
+        right: '20px',
+        width: '180px',
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        zIndex: 1000,
+        padding: '12px',
+        border: '1px solid #dee2e6',
+        fontSize: '0.9rem',
+        opacity: showInfoPanel ? '1' : '0',
+        transform: showInfoPanel ? 'translateY(0)' : 'translateY(-20px)',
+        transition: 'opacity 0.3s ease, transform 0.3s ease',
+        pointerEvents: showInfoPanel ? 'auto' : 'none'
+      }}
+    >
+      <h6 className="mb-2 text-primary border-bottom pb-2">Info</h6>
+      <div className="small text-muted mb-1">Name</div>
+      <div className="mb-2 text-truncate fw-bold">{formData.scouterName || 'None'}</div>
+      <div className="small text-muted mb-1">Match</div>
+      <div className="mb-2 fw-bold">{formData.matchNumber || 'None'}</div>
+      <div className="small text-muted mb-1">Team</div>
+      <div className="mb-2 fw-bold">{formData.teamNumber || 'None'}</div>
+      <div className="small text-muted mb-1">Position</div>
+      <div className="fw-bold">{formatPosition(formData.startingPosition) || 'None'}</div>
+    </div>
+  );
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -199,6 +260,7 @@ function Scout() {
       rankPointsOverride: 0,
       useScoreOverride: false,
       useRankPointsOverride: false,
+      died: false,
     });
     setShowClearConfirm(false);
   };
@@ -215,6 +277,7 @@ function Scout() {
       // Safety & Fouls
       data.autoStop ? 'True' : 'False',
       data.eStop ? 'True' : 'False',
+      data.died ? 'True' : 'False',
       data.hitOpponentCage ? 'True' : 'False',
       data.crossedOpponentSide ? 'True' : 'False',
       
@@ -304,6 +367,10 @@ function Scout() {
 
   // Calculate total points
   const calculateTotalPoints = () => {
+    if (formData.useScoreOverride) {
+      return Number(formData.scoreOverride);
+    }
+
     const autoPoints = calculateAutoCoralPoints() + 
       ((Number(formData.autoAlgaeProcessor) * 6) + (Number(formData.autoAlgaeNet) * 4));
     
@@ -314,6 +381,14 @@ function Scout() {
     const endgamePoints = calculateEndgamePoints();
     
     return autoPoints + teleopPoints + endgamePoints;
+  };
+
+  // Calculate teleop points
+  const calculateTeleopPoints = () => {
+    return calculateTeleopCoralPoints() + 
+      ((Number(formData.teleopAlgaeProcessor) * 6) + 
+       (Number(formData.teleopAlgaeNet) * 4) + 
+       (Number(formData.humanPlayerNetScoring) * 4));
   };
 
   // Rank Point calculations
@@ -360,16 +435,24 @@ function Scout() {
 
   // Update points whenever form changes
   useEffect(() => {
-    if (!formData.scoreOverride) {
-      calculateTotalPoints();
-    }
+    const totalPoints = calculateTotalPoints();
+    setFormData(prev => ({
+      ...prev,
+      matchTotalPoints: totalPoints
+    }));
   }, [
     calculateAutoCoralPoints,
     calculateEndgamePoints,
     calculateRankPoints,
     calculateTeleopCoralPoints,
-    formData.rankPointsOverride,
-    formData.scoreOverride
+    formData.autoAlgaeProcessor,
+    formData.autoAlgaeNet,
+    formData.teleopAlgaeProcessor,
+    formData.teleopAlgaeNet,
+    formData.humanPlayerNetScoring,
+    formData.endgamePosition,
+    formData.scoreOverride,
+    formData.useScoreOverride
   ]);
 
   const handleSubmit = (e) => {
@@ -434,6 +517,7 @@ function Scout() {
       rankPointsOverride: 0,
       useScoreOverride: false,
       useRankPointsOverride: false,
+      died: false,
     });
     
     // Navigate to analysis page
@@ -441,27 +525,31 @@ function Scout() {
   };
 
   return (
-    <div className="container mt-4">
+    <div className="container py-4 position-relative">
+      {/* Clear Form Modal */}
       {showClearConfirm && (
         <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Confirm Clear Form</h5>
-                <button type="button" className="btn-close" onClick={() => setShowClearConfirm(false)}></button>
-              </div>
-              <div className="modal-body">
-                <p>Do you want to clear the form?</p>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-primary" onClick={confirmClearForm}>Yes I want to</button>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowClearConfirm(false)}>No I don't</button>
-              </div>
+        <div className="modal-dialog">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">Confirm Clear Form</h5>
+              <button type="button" className="btn-close" onClick={() => setShowClearConfirm(false)}></button>
+            </div>
+            <div className="modal-body">
+              <p>Do you want to clear the form?</p>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-primary" onClick={confirmClearForm}>Yes I want to</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowClearConfirm(false)}>No I don't</button>
             </div>
           </div>
         </div>
+      </div>
       )}
-      
+
+      {/* Floating Info Panel */}
+      <InfoPanel />
+
       <h2 className="text-center mb-4">2025 Reefscape - Match Scouting</h2>
       
       <form onSubmit={handleSubmit} className="scout-form">
@@ -534,10 +622,12 @@ function Scout() {
           </div>
         </div>
 
-        {/* Starting Position Selector */}
-        <div className="row">
-          <div className="col-12">
-            <label className="mb-2">Starting Position</label>
+        {/* Starting Position */}
+        <div className="card mb-4 starting-position-section">
+          <div className="card-header bg-light">
+            <h6 className="mb-0">Starting Position</h6>
+          </div>
+          <div className="card-body">
             <div className="field-diagram d-flex" style={{ 
               backgroundColor: '#f8f9fa',
               border: '2px solid #dee2e6',
@@ -631,14 +721,14 @@ function Scout() {
           </div>
         </div>
 
-        {/* Safety and Fouls */}
-        <div className="card mb-3">
+        {/* Safety & Fouls */}
+        <div className="card mb-4">
           <div className="card-header bg-danger text-white">
             <h5 className="mb-0">Safety and Fouls</h5>
           </div>
           <div className="card-body">
             <div className="row">
-              <div className="col-md-3">
+              <div className="col">
                 <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
                   <input
                     type="checkbox"
@@ -655,7 +745,7 @@ function Scout() {
                   <label className="form-check-label ms-2">Auto Stop</label>
                 </div>
               </div>
-              <div className="col-md-3">
+              <div className="col">
                 <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
                   <input
                     type="checkbox"
@@ -672,7 +762,24 @@ function Scout() {
                   <label className="form-check-label ms-2">E-Stop</label>
                 </div>
               </div>
-              <div className="col-md-3">
+              <div className="col">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
+                  <input
+                    type="checkbox"
+                    name="died"
+                    className="form-check-input"
+                    checked={formData.died}
+                    onChange={e => handleChange({
+                      target: {
+                        name: e.target.name,
+                        value: e.target.checked
+                      }
+                    })}
+                  />
+                  <label className="form-check-label ms-2">Died</label>
+                </div>
+              </div>
+              <div className="col">
                 <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
                   <input
                     type="checkbox"
@@ -689,7 +796,7 @@ function Scout() {
                   <label className="form-check-label ms-2">Hit Opponent</label>
                 </div>
               </div>
-              <div className="col-md-3">
+              <div className="col">
                 <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
                   <input
                     type="checkbox"
@@ -710,15 +817,16 @@ function Scout() {
           </div>
         </div>
 
-        {/* Autonomous Period */}
+        {/* Auto */}
         <div className="card mb-3">
           <div className="card-header bg-secondary text-white">
             <h5 className="mb-0">Autonomous Period</h5>
           </div>
           <div className="card-body">
-            <div className="row mb-3">
-              <div className="col-12 mb-4">
-                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center' }}>
+            {/* Auto Movement */}
+            <div className="row">
+              <div className="col-md-6">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
                   <input
                     type="checkbox"
                     name="movedInAuto"
@@ -734,10 +842,10 @@ function Scout() {
                   <label className="form-check-label ms-2">Moved in Auto</label>
                 </div>
               </div>
-              <div className="col-12">
-                <div className="d-flex flex-column" 
-                     style={{ transform: 'scale(1.5)', transformOrigin: 'left center' }}>
-                  <label className="form-label mb-3">Other Alliance Members Moved:</label>
+
+              <div className="col-md-6">
+                <div className="d-flex flex-column" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
+                  <label className="form-check-label">Other Alliance Members Moved:</label>
                   <div className="d-flex align-items-center">
                     <input
                       type="range"
@@ -1077,7 +1185,7 @@ function Scout() {
                       <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.1rem' }}>
                         Teleop
                         <span className="badge bg-secondary rounded-pill" style={{ fontSize: '1rem' }}>
-                          {calculateTeleopCoralPoints() + ((Number(formData.teleopAlgaeProcessor) * 6) + (Number(formData.teleopAlgaeNet) * 4))}
+                          {calculateTeleopPoints()}
                         </span>
                       </div>
                       <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.1rem' }}>
