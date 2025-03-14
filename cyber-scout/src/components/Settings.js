@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { toggleAutoCollapse, toggleNormalAutoCollapse, setAutoCollapseDelay } from '../redux/settingsSlice';
+import { 
+  toggleAutoCollapse, 
+  setAutoCollapseDelay,
+  toggleSmartInfoCard 
+} from '../redux/settingsSlice';
 
 function Settings({ show, onClose }) {
   const dispatch = useDispatch();
-  const { autoCollapseEnabled, normalAutoCollapseEnabled, autoCollapseDelay } = useSelector(state => state.settings);
+  const { 
+    autoCollapseEnabled, 
+    autoCollapseDelay,
+    smartInfoCardEnabled 
+  } = useSelector(state => state.settings);
   const [delayInputValue, setDelayInputValue] = useState(autoCollapseDelay / 1000);
 
   const handleDelayChange = (e) => {
@@ -61,27 +69,41 @@ function Settings({ show, onClose }) {
         </div>
         
         <div className="settings-content">
+          {/* Info Card Settings */}
           <div className="card mb-3">
             <div className="card-header bg-light">
-              <h5 className="mb-0">Auto Section Behavior</h5>
+              <h5 className="mb-0">Info Card</h5>
             </div>
             <div className="card-body">
               <div className="form-check form-switch mb-3">
                 <input
                   className="form-check-input"
                   type="checkbox"
-                  id="normalAutoCollapse"
-                  checked={normalAutoCollapseEnabled}
-                  onChange={() => dispatch(toggleNormalAutoCollapse())}
+                  id="smartInfoCard"
+                  checked={smartInfoCardEnabled}
+                  onChange={() => dispatch(toggleSmartInfoCard())}
                 />
-                <label className="form-check-label" htmlFor="normalAutoCollapse">
-                  Normal Auto Collapse
+                <label className="form-check-label" htmlFor="smartInfoCard">
+                  Smart Info Card
                 </label>
                 <small className="text-muted d-block">
-                  Allow manual collapsing of the Auto section
+                  Show info card only when scrolling past the starting position section
                 </small>
               </div>
+              {!smartInfoCardEnabled && (
+                <small className="text-muted d-block">
+                  Info card will always be visible (default)
+                </small>
+              )}
+            </div>
+          </div>
 
+          {/* Auto Section Behavior */}
+          <div className="card mb-3">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">Auto Section Behavior</h5>
+            </div>
+            <div className="card-body">
               <div className="form-check form-switch mb-3">
                 <input
                   className="form-check-input"
@@ -97,28 +119,33 @@ function Settings({ show, onClose }) {
                   Automatically collapse the Auto section after a delay
                 </small>
               </div>
-
-              <div className="mb-3">
-                <label htmlFor="collapseDelay" className="form-label">
-                  Auto Collapse Delay (seconds)
-                </label>
-                <div className="input-group">
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="form-control"
-                    id="collapseDelay"
-                    value={delayInputValue}
-                    onChange={handleDelayChange}
-                    onBlur={handleDelayBlur}
-                    disabled={!autoCollapseEnabled}
-                  />
-                  <span className="input-group-text">seconds</span>
+              {autoCollapseEnabled && (
+                <div className="mb-3">
+                  <label htmlFor="collapseDelay" className="form-label">
+                    Auto Collapse Delay (seconds)
+                  </label>
+                  <div className="input-group">
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="form-control"
+                      id="collapseDelay"
+                      value={delayInputValue}
+                      onChange={handleDelayChange}
+                      onBlur={handleDelayBlur}
+                    />
+                    <span className="input-group-text">seconds</span>
+                  </div>
+                  <small className="text-muted">
+                    Value will be adjusted to be between 15-60 seconds
+                  </small>
                 </div>
-                <small className="text-muted">
-                  Value will be adjusted to be between 15-60 seconds
+              )}
+              {!autoCollapseEnabled && (
+                <small className="text-muted d-block">
+                  Auto section will remain expanded (default)
                 </small>
-              </div>
+              )}
             </div>
           </div>
         </div>

@@ -11,7 +11,7 @@ function Scout() {
   const navigate = useNavigate();
   const eventMatches = useSelector(state => state.scouting.eventMatches);
   const selectedEvent = useSelector(state => state.scouting.selectedEvent);
-  const { autoCollapseEnabled, autoCollapseDelay } = useSelector(state => state.settings);
+  const { autoCollapseEnabled, autoCollapseDelay, smartInfoCardEnabled } = useSelector(state => state.settings);
 
   // Refs for mutable values
   const autoCollapseTimer = useRef(null);
@@ -54,10 +54,10 @@ function Scout() {
     humanPlayerNetMisses: 0,
     teleopNotes: '',
     teleopTotalPoints: 0,
-    endgamePosition: '',
+    endgamePosition: '', 
     endgameTotalPoints: 0,
     botPlaystyle: '',
-    matchResult: '',
+    matchResult: '', 
     matchTotalPoints: 0,
     scoreOverride: 0,
     useScoreOverride: false,
@@ -210,47 +210,52 @@ function Scout() {
 
   const formatPosition = (pos) => {
     switch(pos) {
-      case 'blue1': return 'B1';
-      case 'blue2': return 'B2';
-      case 'blue3': return 'B3';
-      case 'red1': return 'R1';
-      case 'red2': return 'R2';
-      case 'red3': return 'R3';
+      case 'blue1': return 'Blue 1';
+      case 'blue2': return 'Blue 2';
+      case 'blue3': return 'Blue 3';
+      case 'red1': return 'Red 1';
+      case 'red2': return 'Red 2';
+      case 'red3': return 'Red 3';
       default: return '';
     }
   };
 
-  const InfoPanel = () => (
-    <div 
-      style={{
-        position: 'fixed',
-        top: '20px',
-        right: '20px',
-        width: '180px',
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        zIndex: 1000,
-        padding: '12px',
-        border: '1px solid #dee2e6',
-        fontSize: '0.9rem',
-        opacity: showInfoPanel ? '1' : '0',
-        transform: showInfoPanel ? 'translateY(0)' : 'translateY(-20px)',
-        transition: 'opacity 0.3s ease, transform 0.3s ease',
-        pointerEvents: showInfoPanel ? 'auto' : 'none'
-      }}
-    >
-      <h6 className="mb-2 text-primary border-bottom pb-2">Info</h6>
-      <div className="small text-muted mb-1">Name</div>
-      <div className="mb-2 text-truncate fw-bold">{formData.scouterName || 'None'}</div>
-      <div className="small text-muted mb-1">Match</div>
-      <div className="mb-2 fw-bold">{formData.matchNumber || 'None'}</div>
-      <div className="small text-muted mb-1">Team</div>
-      <div className="mb-2 fw-bold">{formData.teamNumber || 'None'}</div>
-      <div className="small text-muted mb-1">Position</div>
-      <div className="fw-bold">{formatPosition(formData.startingPosition) || 'None'}</div>
-    </div>
-  );
+  const InfoPanel = () => {
+    const { smartInfoCardEnabled } = useSelector(state => state.settings);
+    
+    return (
+      <div 
+        style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          width: '180px',
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          padding: '12px',
+          border: '1px solid #dee2e6',
+          fontSize: '0.9rem',
+          opacity: smartInfoCardEnabled ? (showInfoPanel ? '1' : '0') : '1',
+          transform: smartInfoCardEnabled ? (showInfoPanel ? 'translateY(0)' : 'translateY(-20px)') : 'translateY(0)',
+          transition: 'opacity 0.3s ease, transform 0.3s ease',
+          pointerEvents: smartInfoCardEnabled ? (showInfoPanel ? 'auto' : 'none') : 'auto',
+          textAlign: 'center'
+        }}
+      >
+        <h6 className="mb-2 text-primary border-bottom pb-2 text-center">Info</h6>
+        <div className="small text-muted mb-1">Name</div>
+        <div className="mb-2 fw-bold">{formData.scouterName || 'None'}</div>
+        <div className="small text-muted mb-1">Match</div>
+        <div className="mb-2 fw-bold">{formData.matchNumber || 'None'}</div>
+        <div className="small text-muted mb-1">Team</div>
+        <div className="mb-2 fw-bold">{formData.teamNumber || 'None'}</div>
+        <div className="small text-muted mb-1">Position</div>
+        <div className="fw-bold">{formatPosition(formData.startingPosition) || 'None'}</div>
+      </div>
+    );
+  };
 
   const fetchMatchData = async () => {
     try {
@@ -272,62 +277,56 @@ function Scout() {
 
   const formatDataForSheets = (data) => {
     const orderedFields = [
-      // Scouter & Match Info
-      data.scouterName,
-      data.matchNumber,
-      data.teamNumber,
-      data.startingPosition,
+      // 1-4: Scouter & Match Info
+      data.scouterName,          // 1. Scouter's Name
+      data.matchNumber,          // 2. Match Number
+      data.teamNumber,           // 3. Team Number
+      data.startingPosition,     // 4. Starting Position
       
-      // Safety & Fouls
-      data.autoStop ? 'True' : 'False',
-      data.eStop ? 'True' : 'False',
-      data.died ? 'True' : 'False',
-      data.fellOver ? 'True' : 'False',
-      data.yellowCard ? 'True' : 'False',
-      data.redCard ? 'True' : 'False',
-      data.hitOpponentCage ? 'True' : 'False',
-      data.crossedOpponentSide ? 'True' : 'False',
+      // 5-12: Safety & Fouls
+      data.autoStop ? 'True' : 'False',              // 5. Auto Stop
+      data.eStop ? 'True' : 'False',                 // 6. E-Stop
+      data.died ? 'True' : 'False',                  // 7. Died
+      data.fellOver ? 'True' : 'False',              // 8. Fell Over
+      data.yellowCard ? 'True' : 'False',            // 9. Yellow Card
+      data.redCard ? 'True' : 'False',               // 10. Red Card
+      data.hitOpponentCage ? 'True' : 'False',       // 11. Hit Opponent Cage
+      data.crossedOpponentSide ? 'True' : 'False',   // 12. Crossed Opponent Side
       
-      // Autonomous
-      data.movedInAuto ? 'True' : 'False',
-      data.otherAllianceMembersMoved,
-      data.autoPoints,
-      data.autoCoralL1,
-      data.autoCoralL2,
-      data.autoCoralL3,
-      data.autoCoralL4,
-      data.autoAlgaeProcessor,
-      data.autoAlgaeNet,
-      data.autoRankPoint,
-      data.autoNotes,
+      // 13-21: Autonomous
+      data.movedInAuto ? 'True' : 'False',   // 13. Moved in Auto
+      data.otherAllianceMembersMoved,        // 14. Other Alliance Members Moved
+      data.autoCoralL1,                      // 15. Auto Coral L1
+      data.autoCoralL2,                      // 16. Auto Coral L2
+      data.autoCoralL3,                      // 17. Auto Coral L3
+      data.autoCoralL4,                      // 18. Auto Coral L4
+      data.autoAlgaeProcessor,               // 19. Auto Algae Processor
+      data.autoAlgaeNet,                     // 20. Auto Algae Net
+      data.autoNotes,                        // 21. Auto Notes
       
-      // Teleop
-      data.teleopCoralL1,
-      data.teleopCoralL2,
-      data.teleopCoralL3,
-      data.teleopCoralL4,
-      data.teleopCoralMissed,
-      data.teleopAlgaeProcessor,
-      data.teleopAlgaeNet,
-      data.humanPlayerNetScoring,
-      data.humanPlayerNetMisses,
-      data.teleopNotes,
-      data.teleopTotalPoints,
+      // 22-32: Teleop
+      data.teleopCoralL1,           // 22. Teleop Coral L1
+      data.teleopCoralL2,           // 23. Teleop Coral L2
+      data.teleopCoralL3,           // 24. Teleop Coral L3
+      data.teleopCoralL4,           // 25. Teleop Coral L4
+      data.teleopCoralMissed,       // 26. Teleop Coral Missed
+      data.teleopAlgaeProcessor,    // 27. Teleop Algae Processor
+      data.teleopAlgaeNet,          // 28. Teleop Algae Net
+      data.humanPlayerNetScoring,   // 29. Human Player Net Scoring
+      data.humanPlayerNetMisses,    // 30. Human Player Net Misses
+      data.teleopNotes,             // 31. Teleop Notes
+      data.teleopTotalPoints,       // 32. Teleop Total Points
       
-      // Endgame
-      data.endgamePosition,
-      data.endgameTotalPoints,
+      // 33-34: Endgame
+      data.endgamePosition,      // 33. Endgame Position
+      data.endgameTotalPoints,   // 34. Endgame Total Points
       
-      // Bot Playstyle
-      data.botPlaystyle,
+      // 35: Bot Playstyle
+      data.botPlaystyle,         // 35. Bot Playstyle
       
-      // Match Results
-      data.matchResult,
-      data.matchTotalPoints,
-      
-      // Score Override
-      data.useScoreOverride ? 'True' : 'False',
-      data.scoreOverride
+      // 36-37: Match Results
+      data.matchResult,          // 36. Match Result
+      data.matchTotalPoints      // 37. Match Total Points
     ];
 
     return orderedFields.join('\t');
