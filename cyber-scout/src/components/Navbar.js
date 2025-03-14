@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import CompetitionSelector from './CompetitionSelector';
 
-function Navbar() {
+function Navbar({ onOpenSettings }) {
   return (
     <nav className="navbar navbar-expand-lg bg-primary">
       <div className="container">
@@ -38,13 +38,21 @@ function Navbar() {
               }}>Analysis</Link>
             </li>
             <li className="nav-item">
-              <Link to="/teams" style={{ 
-                color: '#212529',
-                textDecoration: 'none',
-                padding: '8px 16px',
-                display: 'block',
-                fontWeight: 500
-              }}>Teams</Link>
+              <button 
+                onClick={onOpenSettings}
+                style={{ 
+                  color: '#212529',
+                  textDecoration: 'none',
+                  padding: '8px 16px',
+                  display: 'block',
+                  fontWeight: 500,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Settings
+              </button>
             </li>
           </ul>
           <CompetitionSelector />

@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useDispatch } from 'react-redux';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
 import { tbaService } from '../services/tba-service';
 import { QRCodeSVG } from 'qrcode.react';
 import { addMatch } from '../store/scoutingSlice';
@@ -10,29 +9,29 @@ import NumberInput from '../components/NumberInput';
 function Scout() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [qrData, setQRData] = useState('');
-  const [tbaRankPoints, setTbaRankPoints] = useState(0);
-  const [validationError, setValidationError] = useState('');
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const eventMatches = useSelector(state => state.scouting.eventMatches);
   const selectedEvent = useSelector(state => state.scouting.selectedEvent);
-  const [correctPosition, setCorrectPosition] = useState(null);
-  const [showInfoPanel, setShowInfoPanel] = useState(false);
+  const { autoCollapseEnabled, autoCollapseDelay } = useSelector(state => state.settings);
 
+  // Refs for mutable values
+  const autoCollapseTimer = useRef(null);
+  const autoFirstEdit = useRef(false);
+  const formDataRef = useRef(null);
+
+  // Form Data State
   const [formData, setFormData] = useState({
-    // Scout Information
-    scouterName: '',  // Add scouter name field
+    scouterName: '',
     matchNumber: '',
     teamNumber: '',
     startingPosition: '',
-    // Safety and Fouls
     autoStop: false,
     eStop: false,
-    died: false, // Add died field
+    died: false,
+    fellOver: false,
+    yellowCard: false,
+    redCard: false,
     hitOpponentCage: false,
     crossedOpponentSide: false,
-    // Autonomous
     movedInAuto: false,
     otherAllianceMembersMoved: 0,
     autoPoints: 0,
@@ -44,7 +43,6 @@ function Scout() {
     autoAlgaeNet: 0,
     autoNotes: '',
     autoRankPoint: 0,
-    // Teleop
     teleopCoralL1: 0,
     teleopCoralL2: 0,
     teleopCoralL3: 0,
@@ -56,18 +54,144 @@ function Scout() {
     humanPlayerNetMisses: 0,
     teleopNotes: '',
     teleopTotalPoints: 0,
-    // Endgame
-    endgamePosition: '', // 'park', 'shallow', 'deep', 'none'
+    endgamePosition: '',
     endgameTotalPoints: 0,
-    // Match Results
-    matchResult: '', // 'win', 'loss', 'tie'
+    botPlaystyle: '',
+    matchResult: '',
     matchTotalPoints: 0,
-    // Score Override
     scoreOverride: 0,
-    rankPointsOverride: 0,
     useScoreOverride: false,
-    useRankPointsOverride: false,
   });
+
+  // Other State
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrData, setQRData] = useState('');
+  const [tbaRankPoints, setTbaRankPoints] = useState(0);
+  const [validationError, setValidationError] = useState('');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [correctPosition, setCorrectPosition] = useState(null);
+  const [showInfoPanel, setShowInfoPanel] = useState(false);
+  const [autoCollapsed, setAutoCollapsed] = useState(false);
+  const [teleopCollapsed, setTeleopCollapsed] = useState(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+
+  // Keep formDataRef in sync with formData
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
+  const validateTeamAndMatch = useCallback((matchNum, teamNum) => {
+    if (!matchNum || !teamNum) {
+      setValidationError('Please enter both match and team numbers');
+      return false;
+    }
+
+    // Match number validation
+    if (isNaN(matchNum) || matchNum < 1) {
+      setValidationError('Please enter a valid match number');
+      return false;
+    }
+
+    // Team number validation
+    if (isNaN(teamNum) || teamNum < 1 || teamNum > 10715) {
+      setValidationError('Please enter a valid team number');
+      return false;
+    }
+
+    // Check if match exists in eventMatches
+    if (eventMatches?.length > 0) {
+      const matchExists = eventMatches.some(match => 
+        match.match_number === parseInt(matchNum)
+      );
+
+      if (!matchExists) {
+        setValidationError(`Match ${matchNum} not found in the event schedule`);
+        return false;
+      }
+
+      // Check if team is in the match
+      const match = eventMatches.find(m => m.match_number === parseInt(matchNum));
+      if (match) {
+        const teamInMatch = [...match.alliances.blue.team_keys, ...match.alliances.red.team_keys]
+          .some(teamKey => parseInt(teamKey.replace('frc', '')) === parseInt(teamNum));
+
+        if (!teamInMatch) {
+          setValidationError(`Team ${teamNum} is not scheduled for match ${matchNum}`);
+          return false;
+        }
+      }
+    }
+
+    setValidationError('');
+    return true;
+  }, [eventMatches]);
+
+  const handleChange = useCallback(({ target: { name, value } }) => {
+    setFormData(prevData => {
+      const newData = { ...prevData, [name]: value };
+      
+      // Check if this is an auto section field
+      if (autoCollapseEnabled && !autoFirstEdit.current && (
+        name.startsWith('auto') || 
+        name === 'movedInAuto' || 
+        name === 'otherAllianceMembersMoved'
+      )) {
+        autoFirstEdit.current = true;
+        // Clear any existing timer
+        if (autoCollapseTimer.current) {
+          clearTimeout(autoCollapseTimer.current);
+        }
+        // Set new timer
+        autoCollapseTimer.current = setTimeout(() => {
+          setAutoCollapsed(true);
+          autoFirstEdit.current = false;
+        }, autoCollapseDelay);
+      }
+      
+      // Update autoRankPoint when movedInAuto or otherAllianceMembersMoved changes
+      if (name === 'movedInAuto' || name === 'otherAllianceMembersMoved') {
+        const autoQualifies = 
+          (name === 'movedInAuto' ? value : prevData.movedInAuto) && 
+          Number(name === 'otherAllianceMembersMoved' ? value : prevData.otherAllianceMembersMoved) === 2;
+        newData.autoRankPoint = autoQualifies ? 1 : 0;
+      }
+      
+      // Validate team and match numbers when either changes
+      if (name === 'matchNumber' || name === 'teamNumber') {
+        const currentFormData = formDataRef.current;
+        if (currentFormData.matchNumber && currentFormData.teamNumber) {
+          validateTeamAndMatch(
+            name === 'matchNumber' ? value : currentFormData.matchNumber,
+            name === 'teamNumber' ? value : currentFormData.teamNumber
+          );
+        }
+      }
+      
+      return newData;
+    });
+  }, [validateTeamAndMatch, autoCollapseEnabled, autoCollapseDelay]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoCollapseTimer.current) {
+        clearTimeout(autoCollapseTimer.current);
+      }
+    };
+  }, []);
+
+  // Reset timer when auto section is manually expanded
+  useEffect(() => {
+    if (!autoCollapsed && autoCollapseEnabled && autoFirstEdit.current) {
+      if (autoCollapseTimer.current) {
+        clearTimeout(autoCollapseTimer.current);
+      }
+      autoCollapseTimer.current = setTimeout(() => {
+        setAutoCollapsed(true);
+        autoFirstEdit.current = false;
+      }, autoCollapseDelay);
+    }
+  }, [autoCollapsed, autoCollapseEnabled, autoCollapseDelay]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -128,144 +252,24 @@ function Scout() {
     </div>
   );
 
-  const handleChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFormData(prevData => {
-      const newData = { ...prevData, [name]: value };
-      
-      // Update autoRankPoint when movedInAuto or otherAllianceMembersMoved changes
-      if (name === 'movedInAuto' || name === 'otherAllianceMembersMoved') {
-        const autoQualifies = 
-          (name === 'movedInAuto' ? value : prevData.movedInAuto) && 
-          Number(name === 'otherAllianceMembersMoved' ? value : prevData.otherAllianceMembersMoved) === 2;
-        newData.autoRankPoint = autoQualifies ? 1 : 0;
-      }
-      
-      return newData;
-    });
+  const fetchMatchData = async () => {
+    try {
+      if (!selectedEvent || !formData.matchNumber || !formData.teamNumber) return;
 
-    // Validate team and match numbers when either changes
-    if (name === 'matchNumber' || name === 'teamNumber') {
-      if (formData.matchNumber && formData.teamNumber) {
-        validateTeamAndMatch(
-          name === 'matchNumber' ? value : formData.matchNumber,
-          name === 'teamNumber' ? value : formData.teamNumber
-        );
+      const matchData = await tbaService.getMatchData(selectedEvent.key, formData.matchNumber, formData.teamNumber);
+      if (matchData && matchData.position) {
+        setFormData(prev => ({ ...prev, startingPosition: matchData.position }));
+        handleChange({ target: { name: 'startingPosition', value: matchData.position }});
       }
+    } catch (error) {
+      console.error('Error fetching match data:', error);
     }
-  }, [formData]);
+  };
 
   useEffect(() => {
-    const fetchMatchData = async () => {
-      try {
-        if (!selectedEvent || !formData.matchNumber || !formData.teamNumber) return;
-
-        const matchData = await tbaService.getMatchData(selectedEvent.key, formData.matchNumber, formData.teamNumber);
-        if (matchData && matchData.position) {
-          setFormData(prev => ({ ...prev, startingPosition: matchData.position }));
-          handleChange({ target: { name: 'startingPosition', value: matchData.position }});
-        }
-      } catch (error) {
-        console.error('Error fetching match data:', error);
-      }
-    };
-
     fetchMatchData();
   }, [selectedEvent, formData.matchNumber, formData.teamNumber, handleChange]);
 
-  const validateTeamAndMatch = (matchNum, teamNum) => {
-    // Basic validation for match number and team number
-    if (!matchNum || !teamNum) {
-      setValidationError('Please enter both match and team numbers');
-      return false;
-    }
-
-    // Match number validation
-    if (isNaN(matchNum) || matchNum < 1) {
-      setValidationError('Please enter a valid match number');
-      return false;
-    }
-
-    // Team number validation
-    if (isNaN(teamNum) || teamNum < 1 || teamNum > 9999) {
-      setValidationError('Please enter a valid team number');
-      return false;
-    }
-
-    // Check if match exists in eventMatches
-    if (eventMatches && eventMatches.length > 0) {
-      const matchExists = eventMatches.some(match => 
-        match.match_number === parseInt(matchNum)
-      );
-
-      if (!matchExists) {
-        setValidationError(`Match ${matchNum} not found in the event schedule`);
-        return false;
-      }
-
-      // Check if team is in the match
-      const match = eventMatches.find(m => m.match_number === parseInt(matchNum));
-      if (match) {
-        const teamInMatch = [...match.alliances.blue.team_keys, ...match.alliances.red.team_keys]
-          .some(teamKey => parseInt(teamKey.replace('frc', '')) === parseInt(teamNum));
-
-        if (!teamInMatch) {
-          setValidationError(`Team ${teamNum} is not scheduled for match ${matchNum}`);
-          return false;
-        }
-      }
-    }
-
-    setValidationError('');
-    return true;
-  };
-
-  const handleClearForm = () => {
-    setShowClearConfirm(true);
-  };
-
-  const confirmClearForm = () => {
-    setFormData({
-      scouterName: '',  // Add scouter name field
-      matchNumber: '',
-      teamNumber: '',
-      startingPosition: '',
-      movedInAuto: false,
-      otherAllianceMembersMoved: 0,
-      autoPoints: 0,
-      autoCoralL1: 0,
-      autoCoralL2: 0,
-      autoCoralL3: 0,
-      autoCoralL4: 0,
-      autoAlgaeProcessor: 0,
-      autoAlgaeNet: 0,
-      autoNotes: '',
-      autoRankPoint: 0,
-      teleopCoralL1: 0,
-      teleopCoralL2: 0,
-      teleopCoralL3: 0,
-      teleopCoralL4: 0,
-      teleopCoralMissed: 0,
-      teleopAlgaeProcessor: 0,
-      teleopAlgaeNet: 0,
-      humanPlayerNetScoring: 0,
-      humanPlayerNetMisses: 0,
-      teleopNotes: '',
-      teleopTotalPoints: 0,
-      endgamePosition: '', 
-      endgameTotalPoints: 0,
-      matchResult: '', 
-      matchTotalPoints: 0,
-      scoreOverride: 0,
-      rankPointsOverride: 0,
-      useScoreOverride: false,
-      useRankPointsOverride: false,
-      died: false,
-    });
-    setShowClearConfirm(false);
-  };
-
-  // Format data for Google Sheets (tab-separated values)
   const formatDataForSheets = (data) => {
     const orderedFields = [
       // Scouter & Match Info
@@ -278,10 +282,13 @@ function Scout() {
       data.autoStop ? 'True' : 'False',
       data.eStop ? 'True' : 'False',
       data.died ? 'True' : 'False',
+      data.fellOver ? 'True' : 'False',
+      data.yellowCard ? 'True' : 'False',
+      data.redCard ? 'True' : 'False',
       data.hitOpponentCage ? 'True' : 'False',
       data.crossedOpponentSide ? 'True' : 'False',
       
-      // Auto
+      // Autonomous
       data.movedInAuto ? 'True' : 'False',
       data.otherAllianceMembersMoved,
       data.autoPoints,
@@ -311,16 +318,16 @@ function Scout() {
       data.endgamePosition,
       data.endgameTotalPoints,
       
+      // Bot Playstyle
+      data.botPlaystyle,
+      
       // Match Results
       data.matchResult,
       data.matchTotalPoints,
-      data.totalRankPoints,
       
       // Score Override
       data.useScoreOverride ? 'True' : 'False',
-      data.scoreOverride,
-      data.useRankPointsOverride ? 'True' : 'False',
-      data.rankPointsOverride
+      data.scoreOverride
     ];
 
     return orderedFields.join('\t');
@@ -365,30 +372,29 @@ function Scout() {
     }
   };
 
+  const calculateAutoPoints = () => {
+    return calculateAutoCoralPoints() + 
+      ((Number(formData.autoAlgaeProcessor) * 6) + (Number(formData.autoAlgaeNet) * 4));
+  };
+
+  const calculateTeleopPoints = () => {
+    return calculateTeleopCoralPoints() + 
+      ((Number(formData.teleopAlgaeProcessor) * 6) + 
+       (Number(formData.teleopAlgaeNet) * 4) + 
+       (Number(formData.humanPlayerNetScoring) * 4));
+  };
+
   // Calculate total points
   const calculateTotalPoints = () => {
     if (formData.useScoreOverride) {
       return Number(formData.scoreOverride);
     }
 
-    const autoPoints = calculateAutoCoralPoints() + 
-      ((Number(formData.autoAlgaeProcessor) * 6) + (Number(formData.autoAlgaeNet) * 4));
-    
-    const teleopPoints = calculateTeleopCoralPoints() + 
-      ((Number(formData.teleopAlgaeProcessor) * 6) + (Number(formData.teleopAlgaeNet) * 4)) +
-      (Number(formData.humanPlayerNetScoring) * 4);
-    
+    const autoPoints = calculateAutoPoints();
+    const teleopPoints = calculateTeleopPoints();
     const endgamePoints = calculateEndgamePoints();
     
     return autoPoints + teleopPoints + endgamePoints;
-  };
-
-  // Calculate teleop points
-  const calculateTeleopPoints = () => {
-    return calculateTeleopCoralPoints() + 
-      ((Number(formData.teleopAlgaeProcessor) * 6) + 
-       (Number(formData.teleopAlgaeNet) * 4) + 
-       (Number(formData.humanPlayerNetScoring) * 4));
   };
 
   // Rank Point calculations
@@ -441,10 +447,10 @@ function Scout() {
       matchTotalPoints: totalPoints
     }));
   }, [
-    calculateAutoCoralPoints,
+    calculateAutoPoints,
     calculateEndgamePoints,
     calculateRankPoints,
-    calculateTeleopCoralPoints,
+    calculateTeleopPoints,
     formData.autoAlgaeProcessor,
     formData.autoAlgaeNet,
     formData.teleopAlgaeProcessor,
@@ -483,7 +489,7 @@ function Scout() {
     
     // Reset form
     setFormData({
-      scouterName: '',  // Add scouter name field
+      scouterName: '',  
       matchNumber: '',
       teamNumber: '',
       startingPosition: '',
@@ -511,17 +517,61 @@ function Scout() {
       teleopTotalPoints: 0,
       endgamePosition: '', 
       endgameTotalPoints: 0,
+      botPlaystyle: '',
       matchResult: '', 
       matchTotalPoints: 0,
       scoreOverride: 0,
-      rankPointsOverride: 0,
       useScoreOverride: false,
-      useRankPointsOverride: false,
-      died: false,
     });
     
     // Navigate to analysis page
     navigate('/analysis');
+  };
+
+  const handleClearForm = () => {
+    setShowClearConfirm(true);
+  };
+
+  const confirmClearForm = () => {
+    const previousScouterName = formData.scouterName;
+    const previousStartingPosition = formData.startingPosition;
+    
+    setFormData({
+      scouterName: previousScouterName,  
+      matchNumber: '',
+      teamNumber: '',
+      startingPosition: previousStartingPosition, 
+      movedInAuto: false,
+      otherAllianceMembersMoved: 0,
+      autoPoints: 0,
+      autoCoralL1: 0,
+      autoCoralL2: 0,
+      autoCoralL3: 0,
+      autoCoralL4: 0,
+      autoAlgaeProcessor: 0,
+      autoAlgaeNet: 0,
+      autoNotes: '',
+      autoRankPoint: 0,
+      teleopCoralL1: 0,
+      teleopCoralL2: 0,
+      teleopCoralL3: 0,
+      teleopCoralL4: 0,
+      teleopCoralMissed: 0,
+      teleopAlgaeProcessor: 0,
+      teleopAlgaeNet: 0,
+      humanPlayerNetScoring: 0,
+      humanPlayerNetMisses: 0,
+      teleopNotes: '',
+      teleopTotalPoints: 0,
+      endgamePosition: '', 
+      endgameTotalPoints: 0,
+      botPlaystyle: '',
+      matchResult: '', 
+      matchTotalPoints: 0,
+      scoreOverride: 0,
+      useScoreOverride: false,
+    });
+    setShowClearConfirm(false);
   };
 
   return (
@@ -727,102 +777,139 @@ function Scout() {
             <h5 className="mb-0">Safety and Fouls</h5>
           </div>
           <div className="card-body">
-            <div className="row">
-              <div className="col">
-                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
+            <div className="row g-3">
+              <div className="col-md-3">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', marginBottom: '10px' }}>
                   <input
                     type="checkbox"
+                    className="form-check-input"
+                    id="autoStop"
                     name="autoStop"
-                    className="form-check-input"
                     checked={formData.autoStop}
-                    onChange={e => handleChange({
-                      target: {
-                        name: e.target.name,
-                        value: e.target.checked
-                      }
-                    })}
+                    onChange={e => handleChange({ target: { name: e.target.name, value: e.target.checked }})}
                   />
-                  <label className="form-check-label ms-2">Auto Stop</label>
+                  <label className="form-check-label" htmlFor="autoStop">Auto Stop</label>
                 </div>
               </div>
-              <div className="col">
-                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
+              <div className="col-md-3">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', marginBottom: '10px' }}>
                   <input
                     type="checkbox"
+                    className="form-check-input"
+                    id="eStop"
                     name="eStop"
-                    className="form-check-input"
                     checked={formData.eStop}
-                    onChange={e => handleChange({
-                      target: {
-                        name: e.target.name,
-                        value: e.target.checked
-                      }
-                    })}
+                    onChange={e => handleChange({ target: { name: e.target.name, value: e.target.checked }})}
                   />
-                  <label className="form-check-label ms-2">E-Stop</label>
+                  <label className="form-check-label" htmlFor="eStop">E-Stop</label>
                 </div>
               </div>
-              <div className="col">
-                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
+              <div className="col-md-3">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', marginBottom: '10px' }}>
                   <input
                     type="checkbox"
+                    className="form-check-input"
+                    id="died"
                     name="died"
-                    className="form-check-input"
                     checked={formData.died}
-                    onChange={e => handleChange({
-                      target: {
-                        name: e.target.name,
-                        value: e.target.checked
-                      }
-                    })}
+                    onChange={e => handleChange({ target: { name: e.target.name, value: e.target.checked }})}
                   />
-                  <label className="form-check-label ms-2">Died</label>
+                  <label className="form-check-label" htmlFor="died">Died</label>
                 </div>
               </div>
-              <div className="col">
-                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
+              <div className="col-md-3">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', marginBottom: '10px' }}>
                   <input
                     type="checkbox"
+                    className="form-check-input"
+                    id="fellOver"
+                    name="fellOver"
+                    checked={formData.fellOver}
+                    onChange={e => handleChange({ target: { name: e.target.name, value: e.target.checked }})}
+                  />
+                  <label className="form-check-label" htmlFor="fellOver">Fell Over</label>
+                </div>
+              </div>
+              <div className="col-md-3">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', marginBottom: '10px' }}>
+                  <input
+                    type="checkbox"
+                    className="form-check-input"
+                    id="yellowCard"
+                    name="yellowCard"
+                    checked={formData.yellowCard}
+                    onChange={e => handleChange({ target: { name: e.target.name, value: e.target.checked }})}
+                  />
+                  <label className="form-check-label" htmlFor="yellowCard">Yellow Card</label>
+                </div>
+              </div>
+              <div className="col-md-3">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', marginBottom: '10px' }}>
+                  <input
+                    type="checkbox"
+                    className="form-check-input"
+                    id="redCard"
+                    name="redCard"
+                    checked={formData.redCard}
+                    onChange={e => handleChange({ target: { name: e.target.name, value: e.target.checked }})}
+                  />
+                  <label className="form-check-label" htmlFor="redCard">Red Card</label>
+                </div>
+              </div>
+              <div className="col-md-3">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', marginBottom: '10px' }}>
+                  <input
+                    type="checkbox"
+                    className="form-check-input"
+                    id="hitOpponentCage"
                     name="hitOpponentCage"
-                    className="form-check-input"
                     checked={formData.hitOpponentCage}
-                    onChange={e => handleChange({
-                      target: {
-                        name: e.target.name,
-                        value: e.target.checked
-                      }
-                    })}
+                    onChange={e => handleChange({ target: { name: e.target.name, value: e.target.checked }})}
                   />
-                  <label className="form-check-label ms-2">Hit Opponent</label>
+                  <label className="form-check-label" htmlFor="hitOpponentCage">Hit Opponent Cage</label>
                 </div>
               </div>
-              <div className="col">
-                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', margin: '20px 0' }}>
+              <div className="col-md-3">
+                <div className="form-check" style={{ transform: 'scale(1.5)', transformOrigin: 'left center', marginBottom: '10px' }}>
                   <input
                     type="checkbox"
-                    name="crossedOpponentSide"
                     className="form-check-input"
+                    id="crossedOpponentSide"
+                    name="crossedOpponentSide"
                     checked={formData.crossedOpponentSide}
-                    onChange={e => handleChange({
-                      target: {
-                        name: e.target.name,
-                        value: e.target.checked
-                      }
-                    })}
+                    onChange={e => handleChange({ target: { name: e.target.name, value: e.target.checked }})}
                   />
-                  <label className="form-check-label ms-2">Crossed Side</label>
+                  <label className="form-check-label" htmlFor="crossedOpponentSide">Crossed Side</label>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Auto */}
-        <div className="card mb-3">
-          <div className="card-header bg-secondary text-white">
-            <h5 className="mb-0">Autonomous Period</h5>
+        {/* Autonomous */}
+        <div className="card mb-4">
+          <div className="card-header bg-secondary text-white d-flex justify-content-between align-items-center" 
+               data-bs-toggle="collapse"
+               data-bs-target="#autoSection"
+               aria-expanded="true"
+               aria-controls="autoSection"
+               onClick={() => setAutoCollapsed(!autoCollapsed)} 
+               style={{ cursor: 'pointer', padding: '0.75rem 1.25rem' }}>
+            <h5 className="card-title mb-0">Autonomous Period</h5>
+            <div 
+              style={{ 
+                width: 0,
+                height: 0,
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '8px solid rgba(255, 255, 255, 0.9)',
+                transition: 'transform 0.3s ease',
+                transform: `rotate(${autoCollapsed ? 180 : 0}deg)`,
+                marginLeft: '8px'
+              }}
+            />
           </div>
-          <div className="card-body">
+          <div className={`collapse card-body p-3 ${autoCollapsed ? '' : 'show'}`} id="autoSection">
             {/* Auto Movement */}
             <div className="row">
               <div className="col-md-6">
@@ -950,25 +1037,48 @@ function Scout() {
                 <div className="form-group">
                   <label>Auto Notes</label>
                   <textarea
-                    name="autoNotes"
                     className="form-control"
+                    name="autoNotes"
                     value={formData.autoNotes}
                     onChange={handleChange}
-                    placeholder="Describe their autonomous performance..."
-                    rows="2"
+                    maxLength={100}
+                    rows={3}
                   />
+                  <div className="text-end mt-1">
+                    <small className="text-muted">
+                      Characters Remaining: {100 - formData.autoNotes.length}
+                    </small>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Teleop Period */}
-        <div className="card mb-3">
-          <div className="card-header bg-secondary text-white">
-            <h5 className="mb-0">Teleop Period</h5>
+        {/* Teleop */}
+        <div className="card mb-4">
+          <div className="card-header bg-secondary text-white d-flex justify-content-between align-items-center" 
+               data-bs-toggle="collapse"
+               data-bs-target="#teleopSection"
+               aria-expanded="true"
+               aria-controls="teleopSection"
+               onClick={() => setTeleopCollapsed(!teleopCollapsed)} 
+               style={{ cursor: 'pointer', padding: '0.75rem 1.25rem' }}>
+            <h5 className="card-title mb-0">Teleop Period</h5>
+            <div 
+              style={{ 
+                width: 0,
+                height: 0,
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '8px solid rgba(255, 255, 255, 0.9)',
+                transition: 'transform 0.3s ease',
+                transform: `rotate(${teleopCollapsed ? 180 : 0}deg)`,
+                marginLeft: '8px'
+              }}
+            />
           </div>
-          <div className="card-body">
+          <div className={`collapse card-body p-3 ${teleopCollapsed ? '' : 'show'}`} id="teleopSection">
             <div className="row">
               <div className="col-md-6">
                 <div className="card">
@@ -1104,13 +1214,18 @@ function Scout() {
                 <div className="form-group">
                   <label>Teleop Notes</label>
                   <textarea
-                    name="teleopNotes"
                     className="form-control"
+                    name="teleopNotes"
                     value={formData.teleopNotes}
                     onChange={handleChange}
-                    placeholder="Describe their teleop performance..."
-                    rows="2"
+                    maxLength={100}
+                    rows={3}
                   />
+                  <div className="text-end mt-1">
+                    <small className="text-muted">
+                      Characters Remaining: {100 - formData.teleopNotes.length}
+                    </small>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1162,172 +1277,110 @@ function Scout() {
           </div>
         </div>
 
+        {/* Bot Playstyle */}
+        <div className="card mb-3">
+          <div className="card-header bg-light">
+            <h6 className="mb-0">Bot Playstyle</h6>
+          </div>
+          <div className="card-body">
+            <div className="row">
+              <div className="col-12">
+                <div className="form-group mb-3">
+                  <div className="d-flex gap-2">
+                    <button
+                      type="button"
+                      className={`btn flex-grow-1 ${formData.botPlaystyle === 'defensive' ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => handleChange({ target: { name: 'botPlaystyle', value: 'defensive' } })}
+                    >
+                      Defensive
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn flex-grow-1 ${formData.botPlaystyle === 'offensive' ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => handleChange({ target: { name: 'botPlaystyle', value: 'offensive' } })}
+                    >
+                      Offensive
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn flex-grow-1 ${formData.botPlaystyle === 'feeder' ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => handleChange({ target: { name: 'botPlaystyle', value: 'feeder' } })}
+                    >
+                      Feeder
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn flex-grow-1 ${formData.botPlaystyle === 'algae' ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => handleChange({ target: { name: 'botPlaystyle', value: 'algae' } })}
+                    >
+                      Algae Remover
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Point Recap */}
+        <div className="card mb-4">
+          <div className="card-header bg-primary text-white">
+            <h5 className="card-title mb-0">Point Recap</h5>
+          </div>
+          <div className="card-body">
+            <div className="row text-center">
+              <div className="col">
+                <h6 className="text-muted mb-2">Auto</h6>
+                <h4 className="mb-0">{calculateAutoPoints()}</h4>
+              </div>
+              <div className="col">
+                <h6 className="text-muted mb-2">Teleop</h6>
+                <h4 className="mb-0">{calculateTeleopPoints()}</h4>
+              </div>
+              <div className="col">
+                <h6 className="text-muted mb-2">Endgame</h6>
+                <h4 className="mb-0">{calculateEndgamePoints()}</h4>
+              </div>
+              <div className="col">
+                <h6 className="text-muted mb-2">Total</h6>
+                <h4 className="mb-0 text-primary">{calculateTotalPoints()}</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Match Summary */}
         <div className="card mb-3">
           <div className="card-header bg-secondary text-white">
-            <h5 className="mb-0" style={{ fontSize: '1.3rem' }}>Match Summary</h5>
+            <h6 className="mb-0">Match Summary</h6>
           </div>
           <div className="card-body">
             <div className="row">
-              <div className="col-md-6">
-                <div className="card">
-                  <div className="card-header bg-light">
-                    <h6 className="mb-0" style={{ fontSize: '1.1rem' }}>Points Breakdown</h6>
-                  </div>
-                  <div className="card-body">
-                    <div className="list-group">
-                      <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.1rem' }}>
-                        Auto
-                        <span className="badge bg-secondary rounded-pill" style={{ fontSize: '1rem' }}>
-                          {calculateAutoCoralPoints() + ((Number(formData.autoAlgaeProcessor) * 6) + (Number(formData.autoAlgaeNet) * 4))}
-                        </span>
-                      </div>
-                      <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.1rem' }}>
-                        Teleop
-                        <span className="badge bg-secondary rounded-pill" style={{ fontSize: '1rem' }}>
-                          {calculateTeleopPoints()}
-                        </span>
-                      </div>
-                      <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.1rem' }}>
-                        Endgame
-                        <span className="badge bg-secondary rounded-pill" style={{ fontSize: '1rem' }}>
-                          {calculateEndgamePoints()}
-                        </span>
-                      </div>
-                      <div className="list-group-item d-flex justify-content-between align-items-center bg-light py-3" style={{ fontSize: '1.2rem' }}>
-                        <strong>Total Points</strong>
-                        <span className="badge bg-dark rounded-pill" style={{ fontSize: '1.1rem' }}>
-                          {formData.matchTotalPoints}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="col-md-6">
-                <div className="card">
-                  <div className="card-header bg-light">
-                    <h6 className="mb-0" style={{ fontSize: '1.1rem' }}>Final Rank Points</h6>
-                  </div>
-                  <div className="card-body">
-                    <div className="list-group">
-                      <div className="list-group-item d-flex justify-content-between align-items-center py-3" style={{ fontSize: '1.2rem' }}>
-                        <strong>Total RP</strong>
-                        <span className={`badge ${formData.useRankPointsOverride ? 'bg-danger' : 'bg-dark'} rounded-pill`} style={{ fontSize: '1.1rem' }}>
-                          {formData.useRankPointsOverride ? formData.rankPointsOverride : tbaRankPoints}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Emergency Score Override */}
-        <div className="card mb-3">
-          <div className="card-header bg-danger text-white">
-            <h6 className="mb-0">Emergency Score Override</h6>
-          </div>
-          <div className="card-body">
-            <div className="row">
-              <div className="col-md-6">
+              <div className="col-12">
                 <div className="form-group mb-3">
-                  <label><strong>Score Override</strong></label>
-                  <NumberInput
-                    name="scoreOverride"
-                    value={formData.scoreOverride}
-                    onChange={handleChange}
-                    min={0}
-                  />
-                </div>
-                <div className="d-flex gap-2 mb-3">
-                  <button
-                    type="button"
-                    className={`btn ${formData.useScoreOverride ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1`}
-                    onClick={() => setFormData(prev => ({ ...prev, useScoreOverride: true }))}
-                  >
-                    Override Score
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary flex-grow-1"
-                    onClick={() => setFormData(prev => ({ ...prev, useScoreOverride: false }))}
-                  >
-                    Use Regular Score
-                  </button>
-                </div>
-              </div>
-              <div className="col-md-6">
-                <div className="form-group mb-3">
-                  <label><strong>Rank Points Override</strong></label>
-                  <NumberInput
-                    name="rankPointsOverride"
-                    value={formData.rankPointsOverride}
-                    onChange={handleChange}
-                    min={0}
-                  />
-                </div>
-                <div className="d-flex gap-2 mb-3">
-                  <button
-                    type="button"
-                    className={`btn ${formData.useRankPointsOverride ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1`}
-                    onClick={() => setFormData(prev => ({ ...prev, useRankPointsOverride: true }))}
-                  >
-                    Override RP
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary flex-grow-1"
-                    onClick={() => setFormData(prev => ({ ...prev, useRankPointsOverride: false }))}
-                  >
-                    Use Regular RP
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Match Results */}
-        <div className="card mb-3">
-          <div className="card-header">
-            <h5 className="mb-0">Match Results</h5>
-          </div>
-          <div className="card-body">
-            <div className="row">
-              <div className="col-md-6 mx-auto">
-                <div className="card">
-                  <div className="card-header bg-light">
-                    <h6 className="mb-0">Match Result</h6>
-                  </div>
-                  <div className="card-body">
-                    <div className="form-group">
-                      <div className="d-flex gap-2">
-                        <button
-                          type="button"
-                          className={`btn flex-grow-1 ${formData.matchResult === 'win' ? 'btn-primary' : 'btn-outline-primary'}`}
-                          onClick={() => handleChange({ target: { name: 'matchResult', value: 'win' } })}
-                        >
-                          Win
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn flex-grow-1 ${formData.matchResult === 'tie' ? 'btn-primary' : 'btn-outline-primary'}`}
-                          onClick={() => handleChange({ target: { name: 'matchResult', value: 'tie' } })}
-                        >
-                          Tie
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn flex-grow-1 ${formData.matchResult === 'loss' ? 'btn-primary' : 'btn-outline-primary'}`}
-                          onClick={() => handleChange({ target: { name: 'matchResult', value: 'loss' } })}
-                        >
-                          Loss
-                        </button>
-                      </div>
-                    </div>
+                  <label className="form-label">Match Result</label>
+                  <div className="d-flex gap-2">
+                    <button
+                      type="button"
+                      className={`btn flex-grow-1 ${formData.matchResult === 'win' ? 'btn-success' : 'btn-outline-success'}`}
+                      onClick={() => handleChange({ target: { name: 'matchResult', value: 'win' } })}
+                    >
+                      Win
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn flex-grow-1 ${formData.matchResult === 'loss' ? 'btn-danger' : 'btn-outline-danger'}`}
+                      onClick={() => handleChange({ target: { name: 'matchResult', value: 'loss' } })}
+                    >
+                      Loss
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn flex-grow-1 ${formData.matchResult === 'tie' ? 'btn-warning' : 'btn-outline-warning'}`}
+                      onClick={() => handleChange({ target: { name: 'matchResult', value: 'tie' } })}
+                    >
+                      Tie
+                    </button>
                   </div>
                 </div>
               </div>

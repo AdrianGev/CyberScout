@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-function Home() {
+function Home({ onOpenSettings }) {
   return (
     <>
       <div className="text-center mb-5">
@@ -32,10 +32,10 @@ function Home() {
         <div className="col-md-4">
           <div className="card h-100">
             <div className="card-body text-center">
-              <i className="bi bi-people-fill display-4 text-primary mb-3"></i>
-              <h5 className="card-title">Teams</h5>
-              <p className="card-text">Access comprehensive team information and historical performance data.</p>
-              <Link to="/teams" className="btn btn-outline-primary">View Teams</Link>
+              <i className="bi bi-gear-fill display-4 text-primary mb-3"></i>
+              <h5 className="card-title">Settings</h5>
+              <p className="card-text">Configure application preferences and customize your scouting experience.</p>
+              <button onClick={onOpenSettings} className="btn btn-outline-primary">Open Settings</button>
             </div>
           </div>
         </div>
