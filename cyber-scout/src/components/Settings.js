@@ -3,7 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { 
   toggleAutoCollapse, 
   setAutoCollapseDelay,
-  toggleSmartInfoCard 
+  toggleSmartInfoCard,
+  toggleInfoCard 
 } from '../redux/settingsSlice';
 
 function Settings({ show, onClose }) {
@@ -11,7 +12,8 @@ function Settings({ show, onClose }) {
   const { 
     autoCollapseEnabled, 
     autoCollapseDelay,
-    smartInfoCardEnabled 
+    smartInfoCardEnabled,
+    showInfoCard 
   } = useSelector(state => state.settings);
   const [delayInputValue, setDelayInputValue] = useState(autoCollapseDelay / 1000);
 
@@ -79,18 +81,36 @@ function Settings({ show, onClose }) {
                 <input
                   className="form-check-input"
                   type="checkbox"
-                  id="smartInfoCard"
-                  checked={smartInfoCardEnabled}
-                  onChange={() => dispatch(toggleSmartInfoCard())}
+                  id="showInfoCard"
+                  checked={showInfoCard}
+                  onChange={() => dispatch(toggleInfoCard())}
                 />
-                <label className="form-check-label" htmlFor="smartInfoCard">
-                  Smart Info Card
+                <label className="form-check-label" htmlFor="showInfoCard">
+                  Show Info Card
                 </label>
                 <small className="text-muted d-block">
-                  Show info card only when scrolling past the starting position section
+                  Display the info card with match details
                 </small>
               </div>
-              {!smartInfoCardEnabled && (
+
+              {showInfoCard && (
+                <div className="form-check form-switch mb-3">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="smartInfoCard"
+                    checked={smartInfoCardEnabled}
+                    onChange={() => dispatch(toggleSmartInfoCard())}
+                  />
+                  <label className="form-check-label" htmlFor="smartInfoCard">
+                    Smart Info Card
+                  </label>
+                  <small className="text-muted d-block">
+                    Show info card only when scrolling past the starting position section
+                  </small>
+                </div>
+              )}
+              {showInfoCard && !smartInfoCardEnabled && (
                 <small className="text-muted d-block">
                   Info card will always be visible (default)
                 </small>

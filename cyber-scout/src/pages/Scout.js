@@ -11,7 +11,7 @@ function Scout() {
   const navigate = useNavigate();
   const eventMatches = useSelector(state => state.scouting.eventMatches);
   const selectedEvent = useSelector(state => state.scouting.selectedEvent);
-  const { autoCollapseEnabled, autoCollapseDelay, smartInfoCardEnabled } = useSelector(state => state.settings);
+  const { autoCollapseEnabled, autoCollapseDelay, smartInfoCardEnabled, showInfoCard } = useSelector(state => state.settings);
 
   // Refs for mutable values
   const autoCollapseTimer = useRef(null);
@@ -221,7 +221,9 @@ function Scout() {
   };
 
   const InfoPanel = () => {
-    const { smartInfoCardEnabled } = useSelector(state => state.settings);
+    const { smartInfoCardEnabled, showInfoCard } = useSelector(state => state.settings);
+    
+    if (!showInfoCard) return null;
     
     return (
       <div 
