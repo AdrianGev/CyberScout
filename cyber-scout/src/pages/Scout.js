@@ -655,7 +655,7 @@ function Scout() {
                     value={formData.teamNumber}
                     onChange={handleChange}
                     min={1}
-                    max={9999}
+                    max={11000}
                     required
                   />
                 </div>
