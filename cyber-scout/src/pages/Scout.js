@@ -56,7 +56,7 @@ function Scout() {
     teleopTotalPoints: 0,
     endgamePosition: '', 
     endgameTotalPoints: 0,
-    botPlaystyle: '',
+    botPlaystyle: [],
     matchResult: '', 
     matchTotalPoints: 0,
     scoreOverride: 0,
@@ -324,7 +324,7 @@ function Scout() {
       data.endgameTotalPoints,   // 34. Endgame Total Points
       
       // 35: Bot Playstyle
-      data.botPlaystyle,         // 35. Bot Playstyle
+      data.botPlaystyle.join(', '),         // 35. Bot Playstyle
       
       // 36-37: Match Results
       data.matchResult,          // 36. Match Result
@@ -518,7 +518,7 @@ function Scout() {
       teleopTotalPoints: 0,
       endgamePosition: '', 
       endgameTotalPoints: 0,
-      botPlaystyle: '',
+      botPlaystyle: [],
       matchResult: '', 
       matchTotalPoints: 0,
       scoreOverride: 0,
@@ -566,7 +566,7 @@ function Scout() {
       teleopTotalPoints: 0,
       endgamePosition: '', 
       endgameTotalPoints: 0,
-      botPlaystyle: '',
+      botPlaystyle: [],
       matchResult: '', 
       matchTotalPoints: 0,
       scoreOverride: 0,
@@ -1290,29 +1290,49 @@ function Scout() {
                   <div className="d-flex gap-2">
                     <button
                       type="button"
-                      className={`btn flex-grow-1 ${formData.botPlaystyle === 'defensive' ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => handleChange({ target: { name: 'botPlaystyle', value: 'defensive' } })}
+                      className={`btn flex-grow-1 ${formData.botPlaystyle.includes('defensive') ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => {
+                        const newPlaystyles = formData.botPlaystyle.includes('defensive')
+                          ? formData.botPlaystyle.filter(style => style !== 'defensive')
+                          : [...formData.botPlaystyle, 'defensive'];
+                        handleChange({ target: { name: 'botPlaystyle', value: newPlaystyles } });
+                      }}
                     >
                       Defensive
                     </button>
                     <button
                       type="button"
-                      className={`btn flex-grow-1 ${formData.botPlaystyle === 'offensive' ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => handleChange({ target: { name: 'botPlaystyle', value: 'offensive' } })}
+                      className={`btn flex-grow-1 ${formData.botPlaystyle.includes('offensive') ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => {
+                        const newPlaystyles = formData.botPlaystyle.includes('offensive')
+                          ? formData.botPlaystyle.filter(style => style !== 'offensive')
+                          : [...formData.botPlaystyle, 'offensive'];
+                        handleChange({ target: { name: 'botPlaystyle', value: newPlaystyles } });
+                      }}
                     >
                       Offensive
                     </button>
                     <button
                       type="button"
-                      className={`btn flex-grow-1 ${formData.botPlaystyle === 'feeder' ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => handleChange({ target: { name: 'botPlaystyle', value: 'feeder' } })}
+                      className={`btn flex-grow-1 ${formData.botPlaystyle.includes('feeder') ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => {
+                        const newPlaystyles = formData.botPlaystyle.includes('feeder')
+                          ? formData.botPlaystyle.filter(style => style !== 'feeder')
+                          : [...formData.botPlaystyle, 'feeder'];
+                        handleChange({ target: { name: 'botPlaystyle', value: newPlaystyles } });
+                      }}
                     >
                       Feeder
                     </button>
                     <button
                       type="button"
-                      className={`btn flex-grow-1 ${formData.botPlaystyle === 'algae' ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => handleChange({ target: { name: 'botPlaystyle', value: 'algae' } })}
+                      className={`btn flex-grow-1 ${formData.botPlaystyle.includes('algae') ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => {
+                        const newPlaystyles = formData.botPlaystyle.includes('algae')
+                          ? formData.botPlaystyle.filter(style => style !== 'algae')
+                          : [...formData.botPlaystyle, 'algae'];
+                        handleChange({ target: { name: 'botPlaystyle', value: newPlaystyles } });
+                      }}
                     >
                       Algae Remover
                     </button>
