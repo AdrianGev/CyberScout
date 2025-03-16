@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 const SnakeGame = ({ onClose }) => {
-  const [snake, setSnake] = useState([[6, 6], [5, 6]]);
+  const [snake, setSnake] = useState([[8, 8], [7, 8]]);
   const [food, setFood] = useState([3, 3]);
   const [foodType, setFoodType] = useState('apple'); // 'apple' or 'orange'
   const [direction, setDirection] = useState('RIGHT');
@@ -12,7 +12,7 @@ const SnakeGame = ({ onClose }) => {
   const [difficulty, setDifficulty] = useState('easy'); // 'baby', 'easy', or 'hard'
   const [speedBoostTiles, setSpeedBoostTiles] = useState(0);
   const [baseSpeed, setBaseSpeed] = useState(150);
-  const [gridSize, setGridSize] = useState(12); // Default to 12x12 grid
+  const [gridSize, setGridSize] = useState(16); // Default to 16x16 grid
   const [snakeColor, setSnakeColor] = useState('#00ff00');
   const [colorMode, setColorMode] = useState('preset');
   const [rgbValues, setRgbValues] = useState({ r: 0, g: 255, b: 0 });
@@ -409,7 +409,7 @@ const SnakeGame = ({ onClose }) => {
               />
               <div className="d-flex justify-content-between">
                 <small>5x5</small>
-                <small>12x12</small>
+                <small>16x16</small>
                 <small>20x20</small>
               </div>
             </div>
