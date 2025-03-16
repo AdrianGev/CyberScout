@@ -5,6 +5,7 @@ import { tbaService } from '../services/tba-service';
 import { QRCodeSVG } from 'qrcode.react';
 import { addMatch } from '../store/scoutingSlice';
 import NumberInput from '../components/NumberInput';
+import SnakeGame from '../components/SnakeGame';
 
 function Scout() {
   const dispatch = useDispatch();
@@ -74,6 +75,7 @@ function Scout() {
   const [autoCollapsed, setAutoCollapsed] = useState(false);
   const [teleopCollapsed, setTeleopCollapsed] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
+  const [showSnakeGame, setShowSnakeGame] = useState(false);
 
   // Keep formDataRef in sync with formData
   useEffect(() => {
@@ -464,6 +466,14 @@ function Scout() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Check for snake game easter egg
+    if (formData.scouterName === 'hiss' && 
+        formData.matchNumber === '14189114' &&
+        formData.teamNumber === '64') {
+      setShowSnakeGame(true);
+      return;
+    }
     
     // Validate team and match before submission
     if (!validateTeamAndMatch(formData.matchNumber, formData.teamNumber)) {
@@ -1415,6 +1425,50 @@ function Scout() {
           </button>
         </div>
       </form>
+
+      {/* Snake Game Modal */}
+      {showSnakeGame && (
+        <SnakeGame onClose={() => {
+          setShowSnakeGame(false);
+          // Reset form and navigate after closing snake game
+          setFormData({
+            scouterName: '',  
+            matchNumber: '',
+            teamNumber: '',
+            startingPosition: '',
+            movedInAuto: false,
+            otherAllianceMembersMoved: 0,
+            autoPoints: 0,
+            autoCoralL1: 0,
+            autoCoralL2: 0,
+            autoCoralL3: 0,
+            autoCoralL4: 0,
+            autoAlgaeProcessor: 0,
+            autoAlgaeNet: 0,
+            autoNotes: '',
+            autoRankPoint: 0,
+            teleopCoralL1: 0,
+            teleopCoralL2: 0,
+            teleopCoralL3: 0,
+            teleopCoralL4: 0,
+            teleopCoralMissed: 0,
+            teleopAlgaeProcessor: 0,
+            teleopAlgaeNet: 0,
+            humanPlayerNetScoring: 0,
+            humanPlayerNetMisses: 0,
+            teleopNotes: '',
+            teleopTotalPoints: 0,
+            endgamePosition: '', 
+            endgameTotalPoints: 0,
+            botPlaystyle: [],
+            matchResult: '', 
+            matchTotalPoints: 0,
+            scoreOverride: 0,
+            useScoreOverride: false,
+          });
+          window.scrollTo(0, 0);
+        }} />
+      )}
 
       {/* QR Code Overlay */}
       {showQRModal && (
