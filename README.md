@@ -15,3 +15,5 @@ CyberScout is a web-based scouting application for FIRST Robotics Competition (F
 ## Start it
 2. npm start
 
+## Riddle
+3. For the one *named* Medusa makes a certain *sound*, *Adrian* she read in a *universal alphabet* as a *match* was struck to set aflame a fire to reveal the *squares* where the knight jumps.
