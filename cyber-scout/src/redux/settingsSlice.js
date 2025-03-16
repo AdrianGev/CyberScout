@@ -3,7 +3,7 @@ import { createSlice } from '@reduxjs/toolkit';
 const initialState = {
   autoCollapseEnabled: false,  // Auto collapse after timer
   autoCollapseDelay: 20000,  // 20 seconds in milliseconds
-  smartInfoCardEnabled: false,  // Smart info card that appears on scroll (not default)
+  smartInfoCardEnabled: true,  // Smart info card that appears on scroll (enabled by default)
   showInfoCard: true,  // Show info card (enabled by default)
 };
 
